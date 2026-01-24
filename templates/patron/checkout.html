@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}Checkout - Library Room Reservation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Checkout</h1>
+    <p class="page-subtitle">Complete your payment to confirm the reservation</p>
+</div>
+
+<div class="checkout-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <!-- Order Summary -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Booking Summary</h3>
+        </div>
+        <div class="card-body">
+            <div class="summary-item"
+                style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--grey);">
+                <span style="color: var(--dark-grey);">Room</span>
+                <strong>{{ reservation.room_name }}</strong>
+            </div>
+            <div class="summary-item"
+                style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--grey);">
+                <span style="color: var(--dark-grey);">Date</span>
+                <strong>{{ reservation.reservation_date }}</strong>
+            </div>
+            <div class="summary-item"
+                style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--grey);">
+                <span style="color: var(--dark-grey);">Time</span>
+                <strong>{{ reservation.start_time }} - {{ reservation.end_time }}</strong>
+            </div>
+            <div class="summary-item"
+                style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--grey);">
+                <span style="color: var(--dark-grey);">Duration</span>
+                <strong>{{ hours }} hour(s)</strong>
+            </div>
+            <div class="summary-item"
+                style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--grey);">
+                <span style="color: var(--dark-grey);">Rate</span>
+                <strong>RM {{ "%.2f"|format(reservation.price_per_hour) }}/hour</strong>
+            </div>
+            <div class="summary-item"
+                style="display: flex; justify-content: space-between; padding: 16px 0; margin-top: 8px;">
+                <span style="font-size: 18px; font-weight: 600; color: var(--navy);">Total Amount</span>
+                <strong style="font-size: 24px; color: var(--success-green);">RM {{ "%.2f"|format(total_amount)
+                    }}</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Form -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Payment Details</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('patron_checkout', reservation_id=reservation.id) }}">
+                <div class="form-group">
+                    <label class="form-label" for="payment_method">Payment Method</label>
+                    <select id="payment_method" name="payment_method" class="form-control" required>
+                        <option value="">Select payment method</option>
+                        <option value="Online Banking">Online Banking</option>
+                        <option value="FPX">FPX</option>
+                        <option value="Credit Card">Credit Card</option>
+                        <option value="Debit Card">Debit Card</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="bank_name">Bank Name</label>
+                    <select id="bank_name" name="bank_name" class="form-control" required>
+                        <option value="">Select bank</option>
+                        <option value="Maybank" {% if user and user.bank_name=='Maybank' %}selected{% endif %}>Maybank
+                        </option>
+                        <option value="CIMB Bank" {% if user and user.bank_name=='CIMB Bank' %}selected{% endif %}>CIMB
+                            Bank</option>
+                        <option value="Public Bank" {% if user and user.bank_name=='Public Bank' %}selected{% endif %}>
+                            Public Bank</option>
+                        <option value="RHB Bank" {% if user and user.bank_name=='RHB Bank' %}selected{% endif %}>RHB
+                            Bank</option>
+                        <option value="Hong Leong Bank" {% if user and user.bank_name=='Hong Leong Bank' %}selected{%
+                            endif %}>Hong Leong Bank</option>
+                        <option value="AmBank" {% if user and user.bank_name=='AmBank' %}selected{% endif %}>AmBank
+                        </option>
+                        <option value="Bank Islam" {% if user and user.bank_name=='Bank Islam' %}selected{% endif %}>
+                            Bank Islam</option>
+                        <option value="Bank Rakyat" {% if user and user.bank_name=='Bank Rakyat' %}selected{% endif %}>
+                            Bank Rakyat</option>
+                        <option value="OCBC Bank" {% if user and user.bank_name=='OCBC Bank' %}selected{% endif %}>OCBC
+                            Bank</option>
+                        <option value="HSBC Bank" {% if user and user.bank_name=='HSBC Bank' %}selected{% endif %}>HSBC
+                            Bank</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="account_number">Account Number</label>
+                    <input type="text" id="account_number" name="account_number" class="form-control"
+                        placeholder="Enter your account number"
+                        value="{{ user.bank_account_number if user and user.bank_account_number else '' }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="account_holder">Account Holder Name</label>
+                    <input type="text" id="account_holder" name="account_holder" class="form-control"
+                        placeholder="Enter account holder name"
+                        value="{{ user.bank_account_holder if user and user.bank_account_holder else '' }}" required>
+                </div>
+
+                <div class="payment-notice"
+                    style="background-color: #fff3cd; border: 1px solid #ffeeba; padding: 12px; border-radius: 4px; margin-bottom: 20px;">
+                    <i class="fas fa-info-circle" style="color: #856404;"></i>
+                    <span style="color: #856404; font-size: 13px;">This is a simulated payment gateway. No actual
+                        transaction will be made.</span>
+                </div>
+
+                <button type="submit" class="btn btn-success" style="width: 100%; padding: 14px;">
+                    <i class="fas fa-lock"></i> Pay RM {{ "%.2f"|format(total_amount) }}
+                </button>
+
+                <a href="{{ url_for('patron_rooms') }}" class="btn btn-outline mt-20"
+                    style="width: 100%; text-align: center;">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    @media (max-width: 768px) {
+        .checkout-container {
+            grid-template-columns: 1fr !important;
+        }
+    }
+</style>
+{% endblock %}

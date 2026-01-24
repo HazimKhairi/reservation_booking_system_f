@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}All Bookings - Library Room Reservation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">All Bookings</h1>
+    <p class="page-subtitle">View all room reservations in the system</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Booking Records</h3>
+    </div>
+    <div class="card-body">
+        {% if bookings %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Room</th>
+                        <th>Booked By</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for booking in bookings %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ booking.room_name }}</td>
+                        <td>{{ booking.username }}</td>
+                        <td>{{ booking.reservation_date }}</td>
+                        <td>{{ booking.start_time }} - {{ booking.end_time }}</td>
+                        <td>
+                            {% if booking.status == 'confirmed' %}
+                            <span class="badge badge-success">Confirmed</span>
+                            {% else %}
+                            <span class="badge badge-danger">Cancelled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-calendar-times"></i>
+            <h3>No Bookings Found</h3>
+            <p>There are no reservations in the system yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

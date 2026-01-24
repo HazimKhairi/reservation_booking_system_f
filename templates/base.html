@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Library Room Reservation{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="/" class="sidebar-logo">
+                    <i class="fas fa-book-reader"></i>
+                    <span>LibReserve</span>
+                </a>
+            </div>
+
+            <nav class="sidebar-nav">
+                {% if session.role == 'admin' %}
+                <div class="nav-section">
+                    <div class="nav-section-title">Administration</div>
+                    <a href="{{ url_for('admin_dashboard') }}"
+                        class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="{{ url_for('admin_rooms') }}"
+                        class="nav-link {% if 'room' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-door-open"></i>
+                        <span>Manage Rooms</span>
+                    </a>
+                    <a href="{{ url_for('admin_bookings') }}"
+                        class="nav-link {% if request.endpoint == 'admin_bookings' %}active{% endif %}">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>All Bookings</span>
+                    </a>
+                    <a href="{{ url_for('admin_payments') }}"
+                        class="nav-link {% if request.endpoint == 'admin_payments' %}active{% endif %}">
+                        <i class="fas fa-credit-card"></i>
+                        <span>Payments</span>
+                    </a>
+                </div>
+                {% elif session.role == 'patron' %}
+                <div class="nav-section">
+                    <div class="nav-section-title">Menu</div>
+                    <a href="{{ url_for('patron_dashboard') }}"
+                        class="nav-link {% if request.endpoint == 'patron_dashboard' %}active{% endif %}">
+                        <i class="fas fa-home"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="{{ url_for('patron_rooms') }}"
+                        class="nav-link {% if request.endpoint == 'patron_rooms' %}active{% endif %}">
+                        <i class="fas fa-search"></i>
+                        <span>Browse Rooms</span>
+                    </a>
+                    <a href="{{ url_for('patron_my_bookings') }}"
+                        class="nav-link {% if request.endpoint == 'patron_my_bookings' %}active{% endif %}">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>My Bookings</span>
+                    </a>
+                </div>
+                {% endif %}
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">{{ session.username[0]|upper }}</div>
+                    <div class="user-details">
+                        <div class="user-name">{{ session.username }}</div>
+                        <div class="user-role">{{ session.role }}</div>
+                    </div>
+                </div>
+                <a href="{{ url_for('logout') }}" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+
+</html>

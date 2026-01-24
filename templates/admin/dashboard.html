@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - Library Room Reservation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Admin Dashboard</h1>
+    <p class="page-subtitle">Welcome back, {{ session.username }}!</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon blue">
+            <i class="fas fa-door-open"></i>
+        </div>
+        <div class="stat-value">{{ total_rooms }}</div>
+        <div class="stat-label">Total Rooms</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon green">
+            <i class="fas fa-calendar-check"></i>
+        </div>
+        <div class="stat-value">{{ total_bookings }}</div>
+        <div class="stat-label">Active Bookings</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon orange">
+            <i class="fas fa-users"></i>
+        </div>
+        <div class="stat-value">{{ total_patrons }}</div>
+        <div class="stat-label">Registered Patrons</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon red">
+            <i class="fas fa-tools"></i>
+        </div>
+        <div class="stat-value">{{ maintenance_rooms }}</div>
+        <div class="stat-label">Under Maintenance</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Quick Actions</h3>
+    </div>
+    <div class="card-body">
+        <a href="{{ url_for('admin_add_room') }}" class="btn btn-success">
+            <i class="fas fa-plus"></i> Add New Room
+        </a>
+        <a href="{{ url_for('admin_rooms') }}" class="btn btn-primary">
+            <i class="fas fa-door-open"></i> Manage Rooms
+        </a>
+        <a href="{{ url_for('admin_bookings') }}" class="btn btn-outline">
+            <i class="fas fa-calendar-alt"></i> View All Bookings
+        </a>
+    </div>
+</div>
+{% endblock %}

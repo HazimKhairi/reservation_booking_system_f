@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}Payment Receipt - Library Room Reservation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Payment Receipt</h1>
+    <p class="page-subtitle">Your booking has been confirmed</p>
+</div>
+
+<div class="receipt-container" style="max-width: 600px; margin: 0 auto;">
+    <div class="card">
+        <div class="card-body" style="padding: 32px;">
+            <!-- Success Icon -->
+            <div style="text-align: center; margin-bottom: 24px;">
+                <div
+                    style="width: 80px; height: 80px; background-color: #d4edda; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <i class="fas fa-check" style="font-size: 36px; color: var(--success-green);"></i>
+                </div>
+                <h2 style="color: var(--success-green); margin-bottom: 8px;">Payment Successful</h2>
+                <p style="color: var(--dark-grey);">Thank you for your booking!</p>
+            </div>
+
+            <!-- Receipt Header -->
+            <div
+                style="text-align: center; padding: 16px; background-color: var(--navy); color: white; border-radius: 4px; margin-bottom: 24px;">
+                <h3 style="margin-bottom: 4px;">LibReserve</h3>
+                <p style="font-size: 12px; opacity: 0.8;">Library Room Reservation System</p>
+            </div>
+
+            <!-- Transaction Details -->
+            <div style="border: 1px solid var(--grey); border-radius: 4px; padding: 20px; margin-bottom: 20px;">
+                <h4
+                    style="color: var(--navy); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--grey);">
+                    <i class="fas fa-receipt"></i> Transaction Details
+                </h4>
+
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Transaction ID</span>
+                    <strong style="font-family: monospace;">{{ payment.transaction_id }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Date & Time</span>
+                    <strong>{{ payment.paid_at.strftime('%d %b %Y, %I:%M %p') if payment.paid_at else 'N/A' }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Status</span>
+                    <span class="badge badge-success">{{ payment.status|capitalize }}</span>
+                </div>
+            </div>
+
+            <!-- Booking Details -->
+            <div style="border: 1px solid var(--grey); border-radius: 4px; padding: 20px; margin-bottom: 20px;">
+                <h4
+                    style="color: var(--navy); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--grey);">
+                    <i class="fas fa-calendar-check"></i> Booking Details
+                </h4>
+
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Room</span>
+                    <strong>{{ payment.room_name }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Reservation Date</span>
+                    <strong>{{ payment.reservation_date }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Time Slot</span>
+                    <strong>{{ payment.start_time }} - {{ payment.end_time }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Duration</span>
+                    <strong>{{ hours }} hour(s)</strong>
+                </div>
+                {% if payment.equipment %}
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Equipment</span>
+                    <strong>{{ payment.equipment }}</strong>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Payment Information -->
+            <div style="border: 1px solid var(--grey); border-radius: 4px; padding: 20px; margin-bottom: 20px;">
+                <h4
+                    style="color: var(--navy); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--grey);">
+                    <i class="fas fa-credit-card"></i> Payment Information
+                </h4>
+
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Payment Method</span>
+                    <strong>{{ payment.payment_method }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Bank</span>
+                    <strong>{{ payment.bank_name }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Account Number</span>
+                    <strong>****{{ payment.account_number[-4:] if payment.account_number and
+                        payment.account_number|length >= 4 else payment.account_number }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Account Holder</span>
+                    <strong>{{ payment.account_holder }}</strong>
+                </div>
+            </div>
+
+            <!-- Amount -->
+            <div
+                style="background-color: var(--light-grey); border-radius: 4px; padding: 20px; text-align: center; margin-bottom: 24px;">
+                <span style="color: var(--dark-grey); font-size: 14px;">Total Amount Paid</span>
+                <div style="font-size: 32px; font-weight: 700; color: var(--navy); margin-top: 4px;">
+                    RM {{ "%.2f"|format(payment.amount) }}
+                </div>
+            </div>
+
+            <!-- User Details -->
+            <div style="background-color: #f8f9fa; border-radius: 4px; padding: 16px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                    <span style="color: var(--dark-grey);">Booked by:</span>
+                    <strong>{{ payment.username }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 14px; margin-top: 8px;">
+                    <span style="color: var(--dark-grey);">Email:</span>
+                    <strong>{{ payment.email }}</strong>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div style="display: flex; gap: 12px;">
+                <button onclick="window.print()" class="btn btn-primary" style="flex: 1;">
+                    <i class="fas fa-print"></i> Print Receipt
+                </button>
+                <a href="{{ url_for('patron_my_bookings') }}" class="btn btn-outline"
+                    style="flex: 1; text-align: center;">
+                    <i class="fas fa-calendar-alt"></i> My Bookings
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @media print {
+
+        .sidebar,
+        .logout-btn,
+        .btn {
+            display: none !important;
+        }
+
+        .main-content {
+            margin-left: 0 !important;
+        }
+
+        .receipt-container {
+            max-width: 100% !important;
+        }
+    }
+</style>
+{% endblock %}

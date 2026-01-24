@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Browse Rooms - Library Room Reservation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Available Rooms</h1>
+    <p class="page-subtitle">Find and book a room for your needs</p>
+</div>
+
+{% if rooms %}
+<div class="rooms-grid">
+    {% for room in rooms %}
+    <div class="room-card">
+        <div class="room-header">
+            <div class="room-name">{{ room.name }}</div>
+            <div class="room-status">Available for booking</div>
+        </div>
+        <div class="room-body">
+            <div class="room-info">
+                <div class="room-info-item">
+                    <i class="fas fa-users"></i>
+                    <span>Capacity: {{ room.capacity }} people</span>
+                </div>
+                <div class="room-info-item">
+                    <i class="fas fa-tag"></i>
+                    <span>RM {{ "%.2f"|format(room.price_per_hour) if room.price_per_hour else '10.00' }}/hour</span>
+                </div>
+                {% if room.equipment %}
+                <div class="room-info-item">
+                    <i class="fas fa-tools"></i>
+                    <span>{{ room.equipment }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="room-footer">
+            <a href="{{ url_for('patron_book_room', room_id=room.id) }}" class="btn btn-success" style="width: 100%;">
+                <i class="fas fa-calendar-plus"></i> Book This Room
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body">
+        <div class="empty-state">
+            <i class="fas fa-door-closed"></i>
+            <h3>No Rooms Available</h3>
+            <p>There are currently no rooms available for booking. Please check back later.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

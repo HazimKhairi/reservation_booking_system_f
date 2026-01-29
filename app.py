@@ -441,6 +441,38 @@ def patron_cancel_booking(booking_id):
     
     return redirect(url_for('patron_my_bookings'))
 
+@app.route('/patron/delete-account', methods=['POST'])
+def patron_delete_account():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    user_id = session['user_id']
+    username = session.get('username', 'Unknown')
+    
+    # Log the deletion action before deleting the user
+    now = get_malaysia_time()
+    cur.execute("""
+        INSERT INTO user_actions (user_id, action_type, details, date)
+        VALUES (?, ?, ?, ?)
+    """, (user_id, "Account Deletion", f"User '{username}' deleted their own account", now))
+    
+    # Hard delete user data
+    cur.execute("DELETE FROM users WHERE id=?", (user_id,))
+    cur.execute("DELETE FROM bank WHERE user_id=?", (user_id,))
+    cur.execute("DELETE FROM user_bank_acc WHERE user_id=?", (user_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    # Clear session
+    session.clear()
+    
+    flash('Your account has been successfully deleted.', 'success')
+    return redirect(url_for('login'))
+
 # ================= ADMIN ROUTES =================
 @app.route('/admin/dashboard')
 def admin_dashboard():

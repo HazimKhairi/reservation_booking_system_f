@@ -1,228 +1,367 @@
 """
 Database Setup Script for Library Room Reservation System
-Run this script to set up or reset the database
+Run this script to set up or reset the SQLite database
 """
 
-import mysql.connector
+import sqlite3
 import bcrypt
 import os
 import sys
+from datetime import datetime
+import pytz
 
 # Configuration
-DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '',  # Update with your MySQL password
-    'port': 3306
-}
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "reservation_system.db")
 
-DATABASE_NAME = 'library_reservation'
+def get_connection():
+    """Get SQLite database connection"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-def get_connection(with_db=False):
-    config = DB_CONFIG.copy()
-    if with_db:
-        config['database'] = DATABASE_NAME
-    return mysql.connector.connect(**config)
-
-def create_database():
-    print("Creating database...")
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DATABASE_NAME}")
-    cursor.close()
-    conn.close()
-    print(f"Database '{DATABASE_NAME}' ready.")
+def get_malaysia_time():
+    """Get current time in Malaysia timezone"""
+    malaysia_tz = pytz.timezone("Asia/Kuala_Lumpur")
+    return datetime.now(malaysia_tz).strftime("%Y-%m-%d %H:%M:%S")
 
 def create_tables():
+    """Create all database tables"""
     print("Creating tables...")
-    conn = get_connection(with_db=True)
+    conn = get_connection()
     cursor = conn.cursor()
     
     # Users table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(50) NOT NULL UNIQUE,
-            email VARCHAR(100) NOT NULL UNIQUE,
-            password_hash VARCHAR(255) NOT NULL,
-            role ENUM('admin', 'patron') NOT NULL DEFAULT 'patron',
-            bank_name VARCHAR(100),
-            bank_account_number VARCHAR(50),
-            bank_account_holder VARCHAR(100),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            student_id TEXT,
+            faculty TEXT,
+            email TEXT UNIQUE,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'student',
+            created_at TEXT,
+            updated_at TEXT
+        )
+    """)
+    
+    # Bank balance table (system credits)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bank (
+            user_id INTEGER UNIQUE,
+            balance INTEGER DEFAULT 0
+        )
+    """)
+    
+    # User bank account table (external bank balance)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_bank_acc (
+            user_id INTEGER UNIQUE,
+            bank_balance INTEGER DEFAULT 1000
         )
     """)
     
     # Rooms table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS rooms (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            capacity INT NOT NULL,
-            equipment VARCHAR(255),
-            price_per_hour DECIMAL(10, 2) NOT NULL DEFAULT 10.00,
-            status ENUM('available', 'maintenance') NOT NULL DEFAULT 'available',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_name TEXT NOT NULL,
+            capacity INTEGER NOT NULL,
+            price_per_hour REAL NOT NULL DEFAULT 10.0,
+            status TEXT NOT NULL DEFAULT 'available',
+            created_at TEXT,
+            updated_at TEXT
         )
     """)
     
     # Reservations table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS reservations (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            room_id INT NOT NULL,
-            user_id INT NOT NULL,
-            reservation_date DATE NOT NULL,
-            start_time TIME NOT NULL,
-            end_time TIME NOT NULL,
-            status ENUM('pending', 'confirmed', 'cancelled') NOT NULL DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            room_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            num_people INTEGER,
+            status TEXT DEFAULT 'Pending',
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (room_id) REFERENCES rooms(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
     
     # Payments table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payments (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            reservation_id INT NOT NULL,
-            user_id INT NOT NULL,
-            amount DECIMAL(10, 2) NOT NULL,
-            payment_method VARCHAR(50) NOT NULL,
-            bank_name VARCHAR(100),
-            account_number VARCHAR(50),
-            account_holder VARCHAR(100),
-            transaction_id VARCHAR(100) UNIQUE,
-            status ENUM('pending', 'completed', 'failed', 'refunded') NOT NULL DEFAULT 'pending',
-            paid_at TIMESTAMP NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reservation_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            payment_method TEXT NOT NULL,
+            bank_name TEXT,
+            account_number TEXT,
+            account_holder TEXT,
+            transaction_id TEXT UNIQUE,
+            status TEXT NOT NULL DEFAULT 'pending',
+            paid_at TEXT,
+            created_at TEXT,
+            FOREIGN KEY (reservation_id) REFERENCES reservations(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Equipment table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS equipment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            price INTEGER NOT NULL
+        )
+    """)
+    
+    # Reservation equipment junction table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reservation_equipment (
+            reservation_id INTEGER,
+            equipment_id INTEGER,
+            FOREIGN KEY (reservation_id) REFERENCES reservations(id),
+            FOREIGN KEY (equipment_id) REFERENCES equipment(id)
+        )
+    """)
+    
+    # Transactions table (topup records)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            bank_name TEXT,
+            amount INTEGER,
+            date TEXT,
+            status TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Booking rules table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS booking_rules (
+            id INTEGER PRIMARY KEY,
+            max_active INTEGER
+        )
+    """)
+    
+    # Room actions table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS room_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_id INTEGER,
+            action TEXT,
+            date TEXT,
+            FOREIGN KEY (room_id) REFERENCES rooms(id)
+        )
+    """)
+    
+    # User actions log table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action_type TEXT,
+            details TEXT,
+            date TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
     
     conn.commit()
-    
-    # Fix existing tables if they have wrong structure
-    # This ensures 'pending' is in the reservations status enum
-    try:
-        cursor.execute("""
-            ALTER TABLE reservations 
-            MODIFY COLUMN status ENUM('pending', 'confirmed', 'cancelled') 
-            NOT NULL DEFAULT 'pending'
-        """)
-        conn.commit()
-    except mysql.connector.Error:
-        pass  # Already correct
-    
     cursor.close()
     conn.close()
-    print("Tables created.")
+    print("✓ Tables created successfully.")
 
 def create_admin():
+    """Create default admin user"""
     print("Creating admin user...")
-    conn = get_connection(with_db=True)
+    conn = get_connection()
     cursor = conn.cursor()
     
     # Check if admin exists
     cursor.execute("SELECT id FROM users WHERE username = 'admin'")
-    if cursor.fetchone():
-        # Update password
+    admin = cursor.fetchone()
+    
+    now = get_malaysia_time()
+    
+    if admin:
+        # Update admin password
         password_hash = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        cursor.execute("UPDATE users SET password_hash = %s WHERE username = 'admin'", (password_hash,))
-        print("Admin password updated.")
+        cursor.execute(
+            "UPDATE users SET password = ?, updated_at = ? WHERE username = 'admin'",
+            (password_hash, now)
+        )
+        print("✓ Admin password updated.")
     else:
         # Create admin
         password_hash = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        cursor.execute(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (%s, %s, %s, %s)",
-            ('admin', 'admin@library.com', password_hash, 'admin')
-        )
-        print("Admin user created.")
+        cursor.execute("""
+            INSERT INTO users (name, student_id, faculty, email, username, password, role, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ('Admin', '-', 'Library', 'admin@library.com', 'admin', password_hash, 'librarian', now, now))
+        
+        admin_id = cursor.lastrowid
+        
+        # Create bank accounts for admin
+        cursor.execute("INSERT INTO bank (user_id, balance) VALUES (?, ?)", (admin_id, 0))
+        cursor.execute("INSERT INTO user_bank_acc (user_id, bank_balance) VALUES (?, ?)", (admin_id, 1000))
+        
+        print("✓ Admin user created.")
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def create_booking_rules():
+    """Create default booking rules"""
+    print("Setting up booking rules...")
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT id FROM booking_rules WHERE id = 1")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO booking_rules (id, max_active) VALUES (1, 2)")
+        print("✓ Booking rules created (max 2 active reservations per user).")
+    else:
+        print("✓ Booking rules already exist.")
     
     conn.commit()
     cursor.close()
     conn.close()
 
 def create_sample_rooms():
+    """Create sample rooms"""
     print("Creating sample rooms...")
-    conn = get_connection(with_db=True)
+    conn = get_connection()
     cursor = conn.cursor()
     
     # Check if rooms exist
     cursor.execute("SELECT COUNT(*) FROM rooms")
-    if cursor.fetchone()[0] > 0:
-        print("Rooms already exist. Skipping.")
+    count = cursor.fetchone()[0]
+    
+    if count > 0:
+        print(f"✓ {count} rooms already exist. Skipping.")
     else:
+        now = get_malaysia_time()
         rooms = [
-            ('Study Room A', 4, 'Whiteboard, Power Outlets', 5.00, 'available'),
-            ('Conference Room 1', 12, 'Projector, Whiteboard, Video Conference', 15.00, 'available'),
-            ('Quiet Study Pod', 1, 'Desk Lamp, Power Outlet', 3.00, 'available'),
-            ('Group Study Room B', 8, 'Large Display, Whiteboard', 10.00, 'available'),
-            ('Media Room', 6, 'Projector, Sound System, Blu-ray Player', 20.00, 'maintenance'),
+            ('Study Room A', 4, 5.0, 'available', now, now),
+            ('Conference Room 1', 12, 15.0, 'available', now, now),
+            ('Quiet Study Pod', 1, 3.0, 'available', now, now),
+            ('Group Study Room B', 8, 10.0, 'available', now, now),
+            ('Media Room', 6, 20.0, 'available', now, now),
+            ('Computer Lab', 20, 25.0, 'available', now, now),
         ]
-        cursor.executemany(
-            "INSERT INTO rooms (name, capacity, equipment, price_per_hour, status) VALUES (%s, %s, %s, %s, %s)",
-            rooms
-        )
-        print(f"Created {len(rooms)} sample rooms.")
+        
+        cursor.executemany("""
+            INSERT INTO rooms (room_name, capacity, price_per_hour, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, rooms)
+        
+        print(f"✓ Created {len(rooms)} sample rooms.")
     
     conn.commit()
     cursor.close()
     conn.close()
 
-def cleanup_test_data():
-    print("Cleaning up test data...")
-    conn = get_connection(with_db=True)
+def create_sample_equipment():
+    """Create sample equipment"""
+    print("Creating sample equipment...")
+    conn = get_connection()
     cursor = conn.cursor()
     
-    # Get all test user ids first
-    cursor.execute("SELECT id FROM users WHERE username LIKE 'test%' OR username LIKE 'debug%'")
-    test_users = cursor.fetchall()
+    # Check if equipment exists
+    cursor.execute("SELECT COUNT(*) FROM equipment")
+    count = cursor.fetchone()[0]
     
-    for (user_id,) in test_users:
-        # Delete payments for this user
-        cursor.execute("DELETE FROM payments WHERE user_id = %s", (user_id,))
-        # Delete reservations for this user
-        cursor.execute("DELETE FROM reservations WHERE user_id = %s", (user_id,))
-    
-    # Delete all test users
-    cursor.execute("DELETE FROM users WHERE username LIKE 'test%' OR username LIKE 'debug%'")
+    if count > 0:
+        print(f"✓ {count} equipment items already exist. Skipping.")
+    else:
+        equipment = [
+            ('Microphone', 5),
+            ('Projector', 10),
+            ('Speaker', 7),
+            ('Whiteboard', 3),
+            ('Laptop', 15),
+        ]
+        
+        cursor.executemany("INSERT INTO equipment (name, price) VALUES (?, ?)", equipment)
+        print(f"✓ Created {len(equipment)} equipment items.")
     
     conn.commit()
     cursor.close()
     conn.close()
-    print("Test data cleaned.")
+
+def verify_database():
+    """Verify database setup"""
+    print("\nVerifying database setup...")
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Check tables
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    tables = cursor.fetchall()
+    
+    print(f"✓ Found {len(tables)} tables:")
+    for table in tables:
+        cursor.execute(f"SELECT COUNT(*) FROM {table[0]}")
+        count = cursor.fetchone()[0]
+        print(f"  • {table[0]}: {count} records")
+    
+    cursor.close()
+    conn.close()
 
 def main():
-    print("="*50)
-    print("Library Room Reservation - Database Setup")
-    print("="*50)
+    """Main setup function"""
+    print("=" * 60)
+    print("Library Room Reservation System - Database Setup (SQLite)")
+    print("=" * 60)
+    print()
     
     try:
-        create_database()
+        # Check if database already exists
+        db_exists = os.path.exists(DB_PATH)
+        if db_exists:
+            print(f"⚠ Database already exists at: {DB_PATH}")
+            response = input("Do you want to continue? (existing data will be preserved) [y/N]: ")
+            if response.lower() != 'y':
+                print("Setup cancelled.")
+                sys.exit(0)
+        
         create_tables()
         create_admin()
+        create_booking_rules()
         create_sample_rooms()
-        cleanup_test_data()
+        create_sample_equipment()
+        verify_database()
         
-        print("\n" + "="*50)
-        print("Setup completed successfully!")
-        print("="*50)
+        print("\n" + "=" * 60)
+        print("✓ Setup completed successfully!")
+        print("=" * 60)
+        print("\nDatabase location:", DB_PATH)
         print("\nAdmin credentials:")
         print("  Username: admin")
         print("  Password: admin123")
-        print("\nYou can now run the app: python app.py")
+        print("\n⚠ IMPORTANT: Change the admin password after first login!")
+        print("\nYou can now run the app:")
+        print("  python app.py")
+        print("\nOr deploy to PythonAnywhere following the deployment guide.")
+        print()
         
-    except mysql.connector.Error as e:
-        print(f"\nDatabase error: {e}")
-        print("\nMake sure:")
-        print("1. MySQL is running")
-        print("2. Update DB_CONFIG in this script with your MySQL password")
+    except sqlite3.Error as e:
+        print(f"\n✗ Database error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n✗ Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

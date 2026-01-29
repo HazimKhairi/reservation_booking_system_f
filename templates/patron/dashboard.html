@@ -73,4 +73,29 @@
         </a>
     </div>
 </div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Account Settings</h3>
+    </div>
+    <div class="card-body">
+        <form id="deleteAccountForm" action="{{ url_for('patron_delete_account') }}" method="POST"
+            onsubmit="return confirmDelete()">
+            <p style="margin-bottom: 15px; color: #666;">
+                <i class="fas fa-exclamation-triangle" style="color: #f44336;"></i>
+                Deleting your account is permanent and cannot be undone. All your bookings and data will be removed.
+            </p>
+            <button type="submit" class="btn" style="background-color: #f44336; color: white;">
+                <i class="fas fa-trash"></i> Delete My Account
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function confirmDelete() {
+        return confirm('Are you sure you want to delete your account? This action cannot be undone.\n\nAll your bookings and personal data will be permanently removed.');
+    }
+</script>
+
 {% endblock %}

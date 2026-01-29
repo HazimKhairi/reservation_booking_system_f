@@ -894,10 +894,13 @@ def delete_own_account(user):
     cur = conn.cursor()
 
     # Rekod tindakan dalam logs
+    malaysia_tz = pytz.timezone("Asia/Kuala_Lumpur")
+    now = datetime.now(malaysia_tz).strftime("%Y-%m-%d %H:%M:%S")
+    
     cur.execute("""
-    INSERT INTO user_actions (user_id, action, date)
-    VALUES (?,?,?)
-    """, (user["id"], "Deleted account",))
+    INSERT INTO user_actions (user_id, action_type, details, date)
+    VALUES (?,?,?,?)
+    """, (user["id"], "Account Deletion", "User deleted their own account", now))
 
     # Soft delete user
     # Pilihan 1: tandakan active = 0 (perlukan column active dalam users)
@@ -1188,7 +1191,7 @@ def view_user_actions():
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("""
-    SELECT ua.id, u.username, ua.action, ua.date
+    SELECT ua.id, u.username, ua.action_type, ua.details, ua.date
     FROM user_actions ua
     LEFT JOIN users u ON ua.user_id = u.id
     ORDER BY ua.date DESC
@@ -1199,7 +1202,7 @@ def view_user_actions():
     else:
         for r in rows:
             uname = r["username"] if r["username"] else "Deleted User"
-            print(f"{r['date']} | {uname} | {r['action']}")
+            print(f"{r['date']} | {uname} | {r['action_type']} - {r['details']}")
     conn.close()
 
 # ================= MENU =================

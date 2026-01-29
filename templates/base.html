@@ -7,93 +7,379 @@
     <title>{% block title %}Library Room Reservation{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .navbar-menu {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .navbar-menu a {
+            color: #333;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .navbar-menu a:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .page-header {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-title {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            color: #333;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #667eea;
+            color: #667eea;
+        }
+
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #48bb78;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #742a2a;
+            border-left: 4px solid #f56565;
+        }
+
+        .alert-warning {
+            background: #feebc8;
+            color: #7c2d12;
+            border-left: 4px solid #ed8936;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table th,
+        table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        table th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #333;
+        }
+
+        table tr:hover {
+            background: #f7fafc;
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .badge-success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .badge-warning {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .badge-danger {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: #cbd5e0;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .stat-icon.green {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .stat-icon.blue {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .stat-icon.purple {
+            background: #e9d8fd;
+            color: #44337a;
+        }
+
+        .stat-icon.orange {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.875rem;
+        }
+
+        .mt-20 {
+            margin-top: 1.25rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+    </style>
 </head>
 
 <body>
-    <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <a href="/" class="sidebar-logo">
-                    <i class="fas fa-book-reader"></i>
-                    <span>LibReserve</span>
-                </a>
-            </div>
-
-            <nav class="sidebar-nav">
-                {% if session.role == 'admin' %}
-                <div class="nav-section">
-                    <div class="nav-section-title">Administration</div>
-                    <a href="{{ url_for('admin_dashboard') }}"
-                        class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
-                        <i class="fas fa-tachometer-alt"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    <a href="{{ url_for('admin_rooms') }}"
-                        class="nav-link {% if 'room' in request.endpoint %}active{% endif %}">
-                        <i class="fas fa-door-open"></i>
-                        <span>Manage Rooms</span>
-                    </a>
-                    <a href="{{ url_for('admin_bookings') }}"
-                        class="nav-link {% if request.endpoint == 'admin_bookings' %}active{% endif %}">
-                        <i class="fas fa-calendar-check"></i>
-                        <span>All Bookings</span>
-                    </a>
-                    <a href="{{ url_for('admin_payments') }}"
-                        class="nav-link {% if request.endpoint == 'admin_payments' %}active{% endif %}">
-                        <i class="fas fa-credit-card"></i>
-                        <span>Payments</span>
-                    </a>
-                </div>
-                {% elif session.role == 'patron' %}
-                <div class="nav-section">
-                    <div class="nav-section-title">Menu</div>
-                    <a href="{{ url_for('patron_dashboard') }}"
-                        class="nav-link {% if request.endpoint == 'patron_dashboard' %}active{% endif %}">
-                        <i class="fas fa-home"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    <a href="{{ url_for('patron_rooms') }}"
-                        class="nav-link {% if request.endpoint == 'patron_rooms' %}active{% endif %}">
-                        <i class="fas fa-search"></i>
-                        <span>Browse Rooms</span>
-                    </a>
-                    <a href="{{ url_for('patron_my_bookings') }}"
-                        class="nav-link {% if request.endpoint == 'patron_my_bookings' %}active{% endif %}">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>My Bookings</span>
-                    </a>
-                </div>
-                {% endif %}
-            </nav>
-
-            <div class="sidebar-footer">
-                <div class="user-info">
-                    <div class="user-avatar">{{ session.username[0]|upper }}</div>
-                    <div class="user-details">
-                        <div class="user-name">{{ session.username }}</div>
-                        <div class="user-role">{{ session.role }}</div>
-                    </div>
-                </div>
-                <a href="{{ url_for('logout') }}" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="{% if session.role in ['admin', 'librarian'] %}{{ url_for('admin_dashboard') }}{% else %}{{ url_for('patron_dashboard') }}{% endif %}"
+            class="navbar-brand">
+            <i class="fas fa-book-reader"></i> LibReserve
+        </a>
+        <div class="navbar-menu">
+            {% if session.user_id %}
+            {% if session.role in ['admin', 'librarian'] %}
+            <a href="{{ url_for('admin_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="{{ url_for('admin_rooms') }}"><i class="fas fa-door-open"></i> Rooms</a>
+            <a href="{{ url_for('admin_bookings') }}"><i class="fas fa-calendar-alt"></i> Bookings</a>
+            <a href="{{ url_for('admin_payments') }}"><i class="fas fa-money-bill-wave"></i> Payments</a>
+            {% else %}
+            <a href="{{ url_for('patron_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="{{ url_for('patron_rooms') }}"><i class="fas fa-search"></i> Browse Rooms</a>
+            <a href="{{ url_for('patron_my_bookings') }}"><i class="fas fa-calendar-check"></i> My Bookings</a>
             {% endif %}
-            {% endwith %}
+            <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout ({{ session.username }})</a>
+            {% else %}
+            <a href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt"></i> Login</a>
+            <a href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a>
+            {% endif %}
+        </div>
+    </nav>
 
-            {% block content %}{% endblock %}
-        </main>
+    <!-- Flash Messages -->
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+        {% block content %}{% endblock %}
     </div>
 </body>
 

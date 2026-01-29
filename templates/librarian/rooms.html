@@ -33,7 +33,7 @@
                     {% for room in rooms %}
                     <tr>
                         <td>{{ loop.index }}</td>
-                        <td>{{ room.room_name }}</td>
+                        <td>{{ room.name }}</td>
                         <td>{{ room.capacity }} people</td>
                         <td>{{ room.equipment or 'None' }}</td>
                         <td>

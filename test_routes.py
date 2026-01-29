@@ -166,7 +166,9 @@ def test_booking_flow(session, results):
     # Book room ID 1 with a unique time slot (using timestamp to avoid conflicts)
     import random
     import time
-    future_date = (date.today() + timedelta(days=3)).strftime("%Y-%m-%d")
+    # Use random date offset (3-10 days) to avoid conflicts on repeated runs
+    days_offset = random.randint(3, 10)
+    future_date = (date.today() + timedelta(days=days_offset)).strftime("%Y-%m-%d")
     # Use minutes from timestamp to get unique slot
     unique_slot = int(time.time()) % 9 + 8  # 8-16
     
@@ -180,26 +182,39 @@ def test_booking_flow(session, results):
     
     if r.status_code == 302 and "checkout" in location:
         results.add("Booking redirects to checkout", True)
+    elif r.status_code == 200:
+        # Failed to redirect, likely an error message on page
+        print(f"    DEBUG: Booking failed. Status 200. Content snippet: {r.text[:500]}...")
+        # Try to extract the flash message
+        import re
+        flash_msg = re.search(r'<div class="alert alert-\w+">(.*?)</div>', r.text)
+        if flash_msg:
+             print(f"    DEBUG: Flash message: {flash_msg.group(1)}")
+        results.add("Booking redirects to checkout", False, "Status: 200 (Form validation/conflict error)")
+        return
+    else:
+        results.add("Booking redirects to checkout", False, f"Status: {r.status_code}, Location: {location}")
+        return
+
+    # Build full URL
+    if location.startswith("/"):
+        checkout_url = f"{BASE_URL}{location}"
+    else:
+        checkout_url = location
         
-        # Build full URL
-        if location.startswith("/"):
-            checkout_url = f"{BASE_URL}{location}"
+    r = session.get(checkout_url)
+    # Check for checkout page content
+    has_checkout = "Payment Details" in r.text or "Booking Summary" in r.text or "pay" in r.text.lower()
+    
+    if not has_checkout:
+        if "Reservation not found" in r.text or "already processed" in r.text:
+            results.add("Checkout page loads", False, "Reservation already processed")
         else:
-            checkout_url = location
-            
-        r = session.get(checkout_url)
-        # Check for checkout page content
-        has_checkout = "Payment Details" in r.text or "Booking Summary" in r.text or "pay" in r.text.lower()
-        
-        if not has_checkout:
-            if "Reservation not found" in r.text or "already processed" in r.text:
-                results.add("Checkout page loads", False, "Reservation already processed")
-            else:
-                # Print first 200 chars for debug
-                print(f"    Debug: page content snippet: {r.text[:200]}...")
-                results.add("Checkout page loads", False, "Content mismatch")
-        else:
-            results.add("Checkout page loads", True)
+            # Print first 200 chars for debug
+            print(f"    Debug: page content snippet: {r.text[:200]}...")
+            results.add("Checkout page loads", False, "Content mismatch")
+    else:
+        results.add("Checkout page loads", True)
         
         # Get reservation ID from URL
         if "/checkout/" in location:
@@ -234,11 +249,68 @@ def test_booking_flow(session, results):
             else:
                 results.add("Receipt page loads", False, f"Redirected to: {post_location}")
                 results.add("Transaction ID shown", False)
-    elif r.status_code == 302 and "my-bookings" in location:
-        # Time slot conflict - try again with different slot
-        results.add("Booking redirects to checkout", False, "Time slot conflict - try running setup_db.py first")
-    else:
-        results.add("Booking redirects to checkout", False, f"Status: {r.status_code}, Location: {location}")
+
+
+def test_edit_booking_flow(session, results):
+    """Test the booking update flow"""
+    print("\n--- Testing Booking Update Flow ---")
+
+    # 1. Get existing bookings
+    r = session.get(f"{BASE_URL}/patron/my-bookings")
+    if "No Bookings Yet" in r.text or "Edit" not in r.text:
+        # Need to create a booking first (future date)
+        future_date = (date.today() + timedelta(days=5)).strftime("%Y-%m-%d")
+        r = session.post(f"{BASE_URL}/patron/book/1", data={
+            "date": future_date,
+            "start_time": "10:00",
+            "end_time": "11:00"
+        }, allow_redirects=True)
+        # Assuming this creates a pending booking which shows up? Actually pending bookings might not show Edit if not confirmed?
+        # My code shows edit for any status if date > today.
+        # But wait, checkout flow makes it confirmed. Pending might be in limbo if not paid.
+        # Let's assume we have a booking or just made one.
+        
+        # Refresh my bookings
+        r = session.get(f"{BASE_URL}/patron/my-bookings")
+
+    # Find an edit link to get ID
+    import re
+    match = re.search(r'/patron/edit/(\d+)', r.text)
+    if not match:
+        results.add("Found booking to edit", False, "Could not find Edit link")
+        return
+    
+    booking_id = match.group(1)
+    results.add("Found booking to edit", True, f"Booking ID: {booking_id}")
+    
+    
+    # 2. GET edit page
+    r = session.get(f"{BASE_URL}/patron/edit/{booking_id}")
+    success = r.status_code == 200 and "Edit Booking" in r.text
+    if not success:
+        # Debug info
+        print(f"    DEBUG: Status: {r.status_code}")
+        if r.status_code == 200:
+             print(f"    DEBUG: Content snippet: {r.text[:200]}...")
+        elif r.status_code == 302:
+             print(f"    DEBUG: Redirect to: {r.headers.get('Location')}")
+             
+    results.add("Edit booking page loads", success)
+    
+    # 3. POST update (change time)
+    new_date = (date.today() + timedelta(days=6)).strftime("%Y-%m-%d")
+    r = session.post(f"{BASE_URL}/patron/edit/{booking_id}", data={
+        "date": new_date,
+        "start_time": "14:00",
+        "end_time": "15:00"
+    }, allow_redirects=False)
+    
+    results.add("Booking update submits", r.status_code == 302)
+    
+    # 4. Verify update
+    r = session.get(f"{BASE_URL}/patron/my-bookings")
+    results.add("Updated date appears in list", new_date in r.text)
+
 
 
 def test_authorization(results):
@@ -303,6 +375,8 @@ def main():
     if test_patron_login(patron_session, results):
         test_patron_routes(patron_session, results)
         test_booking_flow(patron_session, results)
+        test_edit_booking_flow(patron_session, results)
+
     
     # Authorization tests
     test_authorization(results)

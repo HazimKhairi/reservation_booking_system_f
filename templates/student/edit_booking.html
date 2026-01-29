@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Booking - Library Room Reservation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Edit Booking</h1>
+    <p class="page-subtitle">Update your reservation for {{ booking.room_name }}</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Booking Details</h3>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('patron_edit_booking', booking_id=booking.id) }}">
+            <div class="form-group">
+                <label class="form-label" for="date">Reservation Date</label>
+                <!-- Calculate min date: must be tomorrow or later -->
+                <input type="date" id="date" name="date" class="form-control" required
+                    value="{{ booking.reservation_date }}" min="">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="start_time">Start Time</label>
+                    <select id="start_time" name="start_time" class="form-control" required>
+                        <option value="">Select start time</option>
+                        {% for hour in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] %}
+                        {% set time_str = "%02d:00"|format(hour) ~ ":00" %}
+                        {% set display_time = "%02d:00"|format(hour) ~ (" AM" if hour < 12 else " PM" ) %} {% if
+                            hour==12 %}{% set display_time="12:00 PM" %}{% endif %} <option value="{{ time_str }}" {% if
+                            (booking.start_time|string).startswith("%02d:00"|format(hour)) %}selected{% endif %}>
+                            {{ display_time }}
+                            </option>
+                            {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="end_time">End Time</label>
+                    <select id="end_time" name="end_time" class="form-control" required>
+                        <option value="">Select end time</option>
+                        {% for hour in [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21] %}
+                        {% set time_str = "%02d:00"|format(hour) ~ ":00" %}
+                        {% set display_time = "%02d:00"|format(hour) ~ (" AM" if hour < 12 else " PM" ) %} {% if
+                            hour==12 %}{% set display_time="12:00 PM" %}{% endif %} <option value="{{ time_str }}" {% if
+                            (booking.end_time|string).startswith("%02d:00"|format(hour)) %}selected{% endif %}>
+                            {{ display_time }}
+                            </option>
+                            {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-20">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Update Booking
+                </button>
+                <a href="{{ url_for('patron_my_bookings') }}" class="btn btn-outline">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Set min date to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const minDate = tomorrow.toISOString().split('T')[0];
+        document.getElementById('date').setAttribute('min', minDate);
+    });
+</script>
+{% endblock %}

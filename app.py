@@ -1,76 +1,42 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-from functools import wraps
+"""
+Library Room Reservation System - Flask Web Application
+Integrates with SQLite database (reservation_system.db)
+Supports both Patron and Admin roles
+"""
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+import sqlite3
+import os
+from datetime import datetime, date, timedelta
+import pytz
 import bcrypt
-import uuid
-from datetime import datetime
-from config import Config
-from db import execute_query
+import time
 
 app = Flask(__name__)
-app.config.from_object(Config)
+app.secret_key = 'your-secret-key-change-this-in-production'  # Change this!
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB = os.path.join(BASE_DIR, "reservation_system.db")
 
-# ============== Decorators ==============
+# ================= DATABASE =================
+def connect_db():
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Please login to access this page.', 'error')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
+def get_malaysia_time():
+    malaysia_tz = pytz.timezone("Asia/Kuala_Lumpur")
+    return datetime.now(malaysia_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Please login to access this page.', 'error')
-            return redirect(url_for('login'))
-        if session.get('role') != 'admin':
-            flash('Access denied. Admin privileges required.', 'error')
-            return redirect(url_for('patron_dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
-def patron_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Please login to access this page.', 'error')
-            return redirect(url_for('login'))
-        if session.get('role') != 'patron':
-            flash('Access denied.', 'error')
-            return redirect(url_for('admin_dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
-# ============== Helper Functions ==============
-
-def calculate_hours(start_time, end_time):
-    start = datetime.strptime(str(start_time), '%H:%M:%S' if ':' in str(start_time) and str(start_time).count(':') == 2 else '%H:%M')
-    end = datetime.strptime(str(end_time), '%H:%M:%S' if ':' in str(end_time) and str(end_time).count(':') == 2 else '%H:%M')
-    diff = (end - start).seconds / 3600
-    return max(diff, 1)
-
-
-def generate_transaction_id():
-    return f"TXN-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
-
-
-# ============== Authentication Routes ==============
-
+# ================= AUTHENTICATION =================
 @app.route('/')
 def index():
     if 'user_id' in session:
-        if session.get('role') == 'admin':
+        if session.get('role') == 'admin' or session.get('role') == 'librarian':
             return redirect(url_for('admin_dashboard'))
-        return redirect(url_for('patron_dashboard'))
+        else:
+            return redirect(url_for('patron_dashboard'))
     return redirect(url_for('login'))
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -78,26 +44,42 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        user = execute_query(
-            "SELECT id, username, password_hash, role FROM users WHERE username = %s",
-            (username,),
-            fetch_one=True
-        )
+        conn = connect_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE username=?", (username,))
+        user = cur.fetchone()
+        conn.close()
         
-        if user and bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            session['role'] = user['role']
-            flash('Login successful!', 'success')
-            
-            if user['role'] == 'admin':
-                return redirect(url_for('admin_dashboard'))
-            return redirect(url_for('patron_dashboard'))
+        if user:
+            stored_password = user['password']
+            # Check if password is hashed (bcrypt) or plain text
+            if stored_password.startswith('$2b$'):
+                if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
+                    session['user_id'] = user['id']
+                    session['username'] = user['username']
+                    session['role'] = user['role']
+                    session['name'] = user['name']
+                    
+                    if user['role'] in ['admin', 'librarian']:
+                        return redirect(url_for('admin_dashboard'))
+                    else:
+                        return redirect(url_for('patron_dashboard'))
+            else:
+                # Plain text password (backward compatibility)
+                if password == stored_password:
+                    session['user_id'] = user['id']
+                    session['username'] = user['username']
+                    session['role'] = user['role']
+                    session['name'] = user['name']
+                    
+                    if user['role'] in ['admin', 'librarian']:
+                        return redirect(url_for('admin_dashboard'))
+                    else:
+                        return redirect(url_for('patron_dashboard'))
         
-        flash('Invalid username or password.', 'error')
+        flash('Invalid username or password', 'error')
     
     return render_template('login.html')
-
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -106,356 +88,550 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
+        name = request.form.get('name', username)
         
         if password != confirm_password:
-            flash('Passwords do not match.', 'error')
+            flash('Passwords do not match', 'error')
             return render_template('register.html')
         
-        existing_user = execute_query(
-            "SELECT id FROM users WHERE username = %s OR email = %s",
-            (username, email),
-            fetch_one=True
-        )
+        conn = connect_db()
+        cur = conn.cursor()
         
-        if existing_user:
-            flash('Username or email already exists. Please login instead.', 'error')
-            return redirect(url_for('login'))
+        # Check if username or email exists
+        cur.execute("SELECT id FROM users WHERE username=? OR email=?", (username, email))
+        if cur.fetchone():
+            flash('Username or email already exists', 'error')
+            conn.close()
+            return render_template('register.html')
         
+        # Hash password
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        now = get_malaysia_time()
         
-        execute_query(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (%s, %s, %s, 'patron')",
-            (username, email, hashed_password.decode('utf-8'))
-        )
-        
-        flash('Registration successful! Please login.', 'success')
-        return redirect(url_for('login'))
+        try:
+            cur.execute("""
+                INSERT INTO users (name, student_id, faculty, email, username, password, role, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'student', ?, ?)
+            """, (name, '', '', email, username, hashed_password.decode('utf-8'), now, now))
+            
+            user_id = cur.lastrowid
+            cur.execute("INSERT INTO bank VALUES (?, 0)", (user_id,))
+            cur.execute("INSERT INTO user_bank_acc VALUES (?, 1000)", (user_id,))
+            
+            conn.commit()
+            flash('Registration successful! Please login.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            flash(f'Registration failed: {str(e)}', 'error')
+        finally:
+            conn.close()
     
     return render_template('register.html')
-
 
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('You have been logged out.', 'success')
+    flash('Logged out successfully', 'success')
     return redirect(url_for('login'))
 
-
-# ============== Admin Routes ==============
-
-@app.route('/admin/dashboard')
-@admin_required
-def admin_dashboard():
-    total_rooms = execute_query("SELECT COUNT(*) as count FROM rooms", fetch_one=True)['count']
-    total_bookings = execute_query("SELECT COUNT(*) as count FROM reservations WHERE status = 'confirmed'", fetch_one=True)['count']
-    total_patrons = execute_query("SELECT COUNT(*) as count FROM users WHERE role = 'patron'", fetch_one=True)['count']
-    maintenance_rooms = execute_query("SELECT COUNT(*) as count FROM rooms WHERE status = 'maintenance'", fetch_one=True)['count']
-    
-    return render_template('admin/dashboard.html', 
-                         total_rooms=total_rooms,
-                         total_bookings=total_bookings,
-                         total_patrons=total_patrons,
-                         maintenance_rooms=maintenance_rooms)
-
-
-@app.route('/admin/rooms')
-@admin_required
-def admin_rooms():
-    rooms = execute_query("SELECT * FROM rooms ORDER BY name", fetch_all=True)
-    return render_template('admin/rooms.html', rooms=rooms)
-
-
-@app.route('/admin/rooms/add', methods=['GET', 'POST'])
-@admin_required
-def admin_add_room():
-    if request.method == 'POST':
-        name = request.form.get('name')
-        capacity = request.form.get('capacity')
-        equipment = request.form.get('equipment')
-        price_per_hour = request.form.get('price_per_hour', 10.00)
-        status = request.form.get('status')
-        
-        execute_query(
-            "INSERT INTO rooms (name, capacity, equipment, price_per_hour, status) VALUES (%s, %s, %s, %s, %s)",
-            (name, capacity, equipment, price_per_hour, status)
-        )
-        
-        flash('Room added successfully!', 'success')
-        return redirect(url_for('admin_rooms'))
-    
-    return render_template('admin/add_room.html')
-
-
-@app.route('/admin/rooms/edit/<int:room_id>', methods=['GET', 'POST'])
-@admin_required
-def admin_edit_room(room_id):
-    if request.method == 'POST':
-        name = request.form.get('name')
-        capacity = request.form.get('capacity')
-        equipment = request.form.get('equipment')
-        price_per_hour = request.form.get('price_per_hour', 10.00)
-        status = request.form.get('status')
-        
-        execute_query(
-            "UPDATE rooms SET name = %s, capacity = %s, equipment = %s, price_per_hour = %s, status = %s WHERE id = %s",
-            (name, capacity, equipment, price_per_hour, status, room_id)
-        )
-        
-        flash('Room updated successfully!', 'success')
-        return redirect(url_for('admin_rooms'))
-    
-    room = execute_query("SELECT * FROM rooms WHERE id = %s", (room_id,), fetch_one=True)
-    if not room:
-        flash('Room not found.', 'error')
-        return redirect(url_for('admin_rooms'))
-    
-    return render_template('admin/edit_room.html', room=room)
-
-
-@app.route('/admin/rooms/delete/<int:room_id>')
-@admin_required
-def admin_delete_room(room_id):
-    execute_query("DELETE FROM rooms WHERE id = %s", (room_id,))
-    flash('Room deleted successfully!', 'success')
-    return redirect(url_for('admin_rooms'))
-
-
-@app.route('/admin/bookings')
-@admin_required
-def admin_bookings():
-    bookings = execute_query("""
-        SELECT r.id, r.reservation_date, r.start_time, r.end_time, r.status,
-               rm.name as room_name, u.username
-        FROM reservations r
-        JOIN rooms rm ON r.room_id = rm.id
-        JOIN users u ON r.user_id = u.id
-        ORDER BY r.reservation_date DESC, r.start_time
-    """, fetch_all=True)
-    return render_template('admin/bookings.html', bookings=bookings)
-
-
-@app.route('/admin/payments')
-@admin_required
-def admin_payments():
-    payments = execute_query("""
-        SELECT p.*, u.username, r.reservation_date, rm.name as room_name
-        FROM payments p
-        JOIN users u ON p.user_id = u.id
-        JOIN reservations r ON p.reservation_id = r.id
-        JOIN rooms rm ON r.room_id = rm.id
-        ORDER BY p.created_at DESC
-    """, fetch_all=True)
-    return render_template('admin/payments.html', payments=payments)
-
-
-# ============== Patron Routes ==============
-
+# ================= PATRON ROUTES =================
 @app.route('/patron/dashboard')
-@patron_required
 def patron_dashboard():
-    upcoming_bookings = execute_query("""
-        SELECT r.id, r.reservation_date, r.start_time, r.end_time, rm.name as room_name
+    if 'user_id' not in session or session.get('role') not in ['student', 'patron']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Get total bookings count
+    cur.execute("SELECT COUNT(*) as total FROM reservations WHERE user_id = ?", (session['user_id'],))
+    total_bookings = cur.fetchone()['total']
+    
+    # Get upcoming bookings
+    cur.execute("""
+        SELECT r.*, rm.room_name, rm.price_per_hour
         FROM reservations r
         JOIN rooms rm ON r.room_id = rm.id
-        WHERE r.user_id = %s AND r.status = 'confirmed' AND r.reservation_date >= CURDATE()
-        ORDER BY r.reservation_date, r.start_time
+        WHERE r.user_id = ? AND r.status IN ('Confirmed', 'Pending')
+        ORDER BY r.date DESC, r.start_time DESC
         LIMIT 5
-    """, (session['user_id'],), fetch_all=True)
+    """, (session['user_id'],))
+    upcoming_bookings = cur.fetchall()
     
-    total_bookings = execute_query(
-        "SELECT COUNT(*) as count FROM reservations WHERE user_id = %s AND status = 'confirmed'",
-        (session['user_id'],),
-        fetch_one=True
-    )['count']
+    # Get balance
+    cur.execute("SELECT balance FROM bank WHERE user_id=?", (session['user_id'],))
+    balance_row = cur.fetchone()
+    balance = balance_row['balance'] if balance_row else 0
+    
+    conn.close()
     
     return render_template('patron/dashboard.html', 
-                         upcoming_bookings=upcoming_bookings,
-                         total_bookings=total_bookings)
-
+                         total_bookings=total_bookings,
+                         upcoming_bookings=upcoming_bookings, 
+                         balance=balance)
 
 @app.route('/patron/rooms')
-@patron_required
 def patron_rooms():
-    rooms = execute_query("SELECT * FROM rooms WHERE status = 'available' ORDER BY name", fetch_all=True)
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM rooms WHERE status='available' ORDER BY room_name")
+    rooms = cur.fetchall()
+    conn.close()
+    
     return render_template('patron/rooms.html', rooms=rooms)
 
-
 @app.route('/patron/book/<int:room_id>', methods=['GET', 'POST'])
-@patron_required
 def patron_book_room(room_id):
-    room = execute_query("SELECT * FROM rooms WHERE id = %s AND status = 'available'", (room_id,), fetch_one=True)
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     
-    if not room:
-        flash('Room not available.', 'error')
-        return redirect(url_for('patron_rooms'))
+    conn = connect_db()
+    cur = conn.cursor()
     
     if request.method == 'POST':
-        reservation_date = request.form.get('date')
+        booking_date = request.form.get('date')
         start_time = request.form.get('start_time')
         end_time = request.form.get('end_time')
+        num_people = request.form.get('num_people', 1)
         
-        conflict = execute_query("""
-            SELECT COUNT(*) as count FROM reservations 
-            WHERE room_id = %s 
-              AND reservation_date = %s 
-              AND status IN ('pending', 'confirmed')
-              AND ((start_time < %s AND end_time > %s) 
-                OR (start_time < %s AND end_time > %s)
-                OR (start_time >= %s AND end_time <= %s))
-        """, (room_id, reservation_date, end_time, start_time, end_time, start_time, start_time, end_time), fetch_one=True)
+        # Get room details
+        cur.execute("SELECT * FROM rooms WHERE id=?", (room_id,))
+        room = cur.fetchone()
         
-        if conflict['count'] > 0:
-            flash('This time slot is already booked. Please choose a different time.', 'error')
-            return render_template('patron/booking.html', room=room)
+        # Calculate cost
+        time_slots = [
+            "08:00 AM","09:00 AM","10:00 AM","11:00 AM",
+            "12:00 PM","01:00 PM","02:00 PM","03:00 PM",
+            "04:00 PM","05:00 PM","06:00 PM","07:00 PM","08:00 PM"
+        ]
+        start_idx = time_slots.index(start_time)
+        end_idx = time_slots.index(end_time)
+        hours = end_idx - start_idx
+        total_cost = hours * room['price_per_hour']
         
-        # Create pending reservation
-        reservation_id = execute_query(
-            "INSERT INTO reservations (room_id, user_id, reservation_date, start_time, end_time, status) VALUES (%s, %s, %s, %s, %s, 'pending')",
-            (room_id, session['user_id'], reservation_date, start_time, end_time)
-        )
+        # Create reservation
+        now = get_malaysia_time()
+        cur.execute("""
+            INSERT INTO reservations (user_id, room_id, date, start_time, end_time, num_people, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?)
+        """, (session['user_id'], room_id, booking_date, start_time, end_time, num_people, now, now))
+        
+        reservation_id = cur.lastrowid
+        conn.commit()
+        conn.close()
         
         # Redirect to checkout
         return redirect(url_for('patron_checkout', reservation_id=reservation_id))
     
+    # GET request - show booking form
+    cur.execute("SELECT * FROM rooms WHERE id=?", (room_id,))
+    room = cur.fetchone()
+    conn.close()
+    
     return render_template('patron/booking.html', room=room)
 
-
 @app.route('/patron/checkout/<int:reservation_id>', methods=['GET', 'POST'])
-@patron_required
 def patron_checkout(reservation_id):
-    reservation = execute_query("""
-        SELECT r.*, rm.name as room_name, rm.capacity, rm.equipment, rm.price_per_hour
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Get reservation details
+    cur.execute("""
+        SELECT r.*, rm.room_name, rm.price_per_hour
         FROM reservations r
         JOIN rooms rm ON r.room_id = rm.id
-        WHERE r.id = %s AND r.user_id = %s AND r.status = 'pending'
-    """, (reservation_id, session['user_id']), fetch_one=True)
+        WHERE r.id = ? AND r.user_id = ?
+    """, (reservation_id, session['user_id']))
+    reservation = cur.fetchone()
     
     if not reservation:
-        flash('Reservation not found or already processed.', 'error')
-        return redirect(url_for('patron_my_bookings'))
+        flash('Reservation not found', 'error')
+        conn.close()
+        return redirect(url_for('patron_dashboard'))
     
-    # Calculate total
-    hours = calculate_hours(reservation['start_time'], reservation['end_time'])
-    total_amount = float(reservation['price_per_hour']) * hours
+    # Calculate cost
+    time_slots = [
+        "08:00 AM","09:00 AM","10:00 AM","11:00 AM",
+        "12:00 PM","01:00 PM","02:00 PM","03:00 PM",
+        "04:00 PM","05:00 PM","06:00 PM","07:00 PM","08:00 PM"
+    ]
+    start_idx = time_slots.index(reservation['start_time'])
+    end_idx = time_slots.index(reservation['end_time'])
+    hours = end_idx - start_idx
+    total_cost = hours * reservation['price_per_hour']
     
     if request.method == 'POST':
         payment_method = request.form.get('payment_method')
         bank_name = request.form.get('bank_name')
         account_number = request.form.get('account_number')
         account_holder = request.form.get('account_holder')
-
-        try:
-            # Generate transaction ID
-            transaction_id = generate_transaction_id()
-
-            # Create payment record
-            payment_id = execute_query("""
-                INSERT INTO payments (reservation_id, user_id, amount, payment_method,
-                                     bank_name, account_number, account_holder, transaction_id, status, paid_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'completed', NOW())
-            """, (reservation_id, session['user_id'], total_amount, payment_method,
-                  bank_name, account_number, account_holder, transaction_id))
-
-            # Update reservation to confirmed
-            execute_query(
-                "UPDATE reservations SET status = 'confirmed' WHERE id = %s",
-                (reservation_id,)
-            )
-
-            # Update user bank details
-            execute_query("""
-                UPDATE users SET bank_name = %s, bank_account_number = %s, bank_account_holder = %s
-                WHERE id = %s
-            """, (bank_name, account_number, account_holder, session['user_id']))
-
-            flash('Payment successful! Your booking is confirmed.', 'success')
-            return redirect(url_for('patron_receipt', payment_id=payment_id))
-        except Exception as e:
-            print(f"Payment error: {e}")
-            flash('Payment processing failed. Please try again.', 'error')
-            return redirect(url_for('patron_my_bookings'))
+        
+        # Generate transaction ID
+        transaction_id = f"TXN-{int(time.time())}"
+        now = get_malaysia_time()
+        
+        # Check balance if using system balance
+        if payment_method == 'System Balance':
+            cur.execute("SELECT balance FROM bank WHERE user_id=?", (session['user_id'],))
+            balance = cur.fetchone()['balance']
+            if balance < total_cost:
+                flash('Insufficient balance', 'error')
+                conn.close()
+                return render_template('patron/checkout.html', reservation=reservation, total_cost=total_cost, hours=hours)
+            
+            # Deduct balance
+            cur.execute("UPDATE bank SET balance = balance - ? WHERE user_id=?", (total_cost, session['user_id']))
+        
+        # Create payment record
+        cur.execute("""
+            INSERT INTO payments (
+                reservation_id, user_id, amount, payment_method,
+                bank_name, account_number, account_holder,
+                transaction_id, status, paid_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)
+        """, (reservation_id, session['user_id'], total_cost, payment_method,
+              bank_name, account_number, account_holder,
+              transaction_id, now, now))
+        
+        # Update reservation status
+        cur.execute("UPDATE reservations SET status='Confirmed' WHERE id=?", (reservation_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Payment successful! Booking confirmed.', 'success')
+        return redirect(url_for('patron_receipt', reservation_id=reservation_id))
     
-    # Get user's saved bank details
-    user = execute_query(
-        "SELECT bank_name, bank_account_number, bank_account_holder FROM users WHERE id = %s",
-        (session['user_id'],),
-        fetch_one=True
-    )
+    conn.close()
+    return render_template('patron/checkout.html', reservation=reservation, total_cost=total_cost, hours=hours)
+
+@app.route('/patron/receipt/<int:reservation_id>')
+def patron_receipt(reservation_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     
-    return render_template('patron/checkout.html', 
-                         reservation=reservation, 
-                         hours=hours, 
-                         total_amount=total_amount,
-                         user=user)
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Get reservation and payment details
+    cur.execute("""
+        SELECT r.*, rm.room_name, rm.price_per_hour, p.transaction_id, p.amount, p.payment_method, p.paid_at
+        FROM reservations r
+        JOIN rooms rm ON r.room_id = rm.id
+        LEFT JOIN payments p ON p.reservation_id = r.id
+        WHERE r.id = ? AND r.user_id = ?
+    """, (reservation_id, session['user_id']))
+    reservation = cur.fetchone()
+    conn.close()
+    
+    if not reservation:
+        flash('Reservation not found', 'error')
+        return redirect(url_for('patron_dashboard'))
+    
+    return render_template('patron/receipt.html', reservation=reservation)
 
+@app.route('/patron/my-bookings')
+def patron_my_bookings():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        SELECT r.*, rm.room_name, rm.price_per_hour
+        FROM reservations r
+        JOIN rooms rm ON r.room_id = rm.id
+        WHERE r.user_id = ?
+        ORDER BY r.date DESC, r.start_time DESC
+    """, (session['user_id'],))
+    bookings = cur.fetchall()
+    conn.close()
+    
+    return render_template('patron/my_bookings.html', bookings=bookings)
 
-@app.route('/patron/receipt/<int:payment_id>')
-@patron_required
-def patron_receipt(payment_id):
-    payment = execute_query("""
-        SELECT p.*, u.username, u.email,
-               r.reservation_date, r.start_time, r.end_time,
-               rm.name as room_name, rm.capacity, rm.equipment, rm.price_per_hour
+@app.route('/patron/edit-booking/<int:booking_id>', methods=['GET', 'POST'])
+def patron_edit_booking(booking_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Get booking details
+    cur.execute("""
+        SELECT r.*, rm.room_name, rm.price_per_hour
+        FROM reservations r
+        JOIN rooms rm ON r.room_id = rm.id
+        WHERE r.id = ? AND r.user_id = ?
+    """, (booking_id, session['user_id']))
+    booking = cur.fetchone()
+    
+    if not booking:
+        flash('Booking not found', 'error')
+        conn.close()
+        return redirect(url_for('patron_my_bookings'))
+    
+    if request.method == 'POST':
+        new_date = request.form.get('date')
+        new_start_time = request.form.get('start_time')
+        new_end_time = request.form.get('end_time')
+        
+        now = get_malaysia_time()
+        cur.execute("""
+            UPDATE reservations 
+            SET date=?, start_time=?, end_time=?, updated_at=?
+            WHERE id=?
+        """, (new_date, new_start_time, new_end_time, now, booking_id))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Booking updated successfully', 'success')
+        return redirect(url_for('patron_my_bookings'))
+    
+    conn.close()
+    return render_template('patron/edit_booking.html', booking=booking)
+
+@app.route('/patron/cancel-booking/<int:booking_id>', methods=['POST'])
+def patron_cancel_booking(booking_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Get booking details
+    cur.execute("""
+        SELECT r.*, p.amount, p.id as payment_id
+        FROM reservations r
+        LEFT JOIN payments p ON p.reservation_id = r.id
+        WHERE r.id = ? AND r.user_id = ?
+    """, (booking_id, session['user_id']))
+    booking = cur.fetchone()
+    
+    if not booking:
+        flash('Booking not found', 'error')
+        conn.close()
+        return redirect(url_for('patron_my_bookings'))
+    
+    # Refund if payment exists
+    if booking['payment_id'] and booking['amount']:
+        cur.execute("UPDATE bank SET balance = balance + ? WHERE user_id=?", 
+                   (booking['amount'], session['user_id']))
+        cur.execute("UPDATE payments SET status='refunded' WHERE id=?", 
+                   (booking['payment_id'],))
+        flash(f'Booking cancelled. Refund of {booking["amount"]} credits processed.', 'success')
+    else:
+        flash('Booking cancelled.', 'success')
+    
+    # Update reservation status
+    now = get_malaysia_time()
+    cur.execute("UPDATE reservations SET status='Cancelled', updated_at=? WHERE id=?", 
+               (now, booking_id))
+    
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('patron_my_bookings'))
+
+# ================= ADMIN ROUTES =================
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Get statistics
+    cur.execute("SELECT COUNT(*) as total FROM rooms")
+    total_rooms = cur.fetchone()['total']
+    
+    cur.execute("SELECT COUNT(*) as total FROM rooms WHERE status='available'")
+    available_rooms = cur.fetchone()['total']
+    
+    cur.execute("SELECT status, COUNT(*) as count FROM reservations GROUP BY status")
+    reservation_stats = cur.fetchall()
+    
+    cur.execute("SELECT SUM(amount) as total FROM payments WHERE status='completed'")
+    total_revenue = cur.fetchone()['total'] or 0
+    
+    # Recent bookings
+    cur.execute("""
+        SELECT r.*, u.name, rm.room_name
+        FROM reservations r
+        JOIN users u ON r.user_id = u.id
+        JOIN rooms rm ON r.room_id = rm.id
+        ORDER BY r.created_at DESC
+        LIMIT 10
+    """)
+    recent_bookings = cur.fetchall()
+    
+    conn.close()
+    
+    return render_template('admin/dashboard.html', 
+                         total_rooms=total_rooms,
+                         available_rooms=available_rooms,
+                         reservation_stats=reservation_stats,
+                         total_revenue=total_revenue,
+                         recent_bookings=recent_bookings)
+
+@app.route('/admin/rooms')
+def admin_rooms():
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM rooms ORDER BY room_name")
+    rooms = cur.fetchall()
+    conn.close()
+    
+    return render_template('admin/rooms.html', rooms=rooms)
+
+@app.route('/admin/rooms/add', methods=['GET', 'POST'])
+def admin_add_room():
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        room_name = request.form.get('name')
+        capacity = request.form.get('capacity')
+        price_per_hour = request.form.get('price_per_hour', 10.0)
+        
+        conn = connect_db()
+        cur = conn.cursor()
+        now = get_malaysia_time()
+        
+        cur.execute("""
+            INSERT INTO rooms (room_name, capacity, price_per_hour, status, created_at, updated_at)
+            VALUES (?, ?, ?, 'available', ?, ?)
+        """, (room_name, capacity, price_per_hour, now, now))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Room added successfully', 'success')
+        return redirect(url_for('admin_rooms'))
+    
+    return render_template('admin/add_room.html')
+
+@app.route('/admin/rooms/edit/<int:room_id>', methods=['GET', 'POST'])
+def admin_edit_room(room_id):
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Get room details
+    cur.execute("SELECT * FROM rooms WHERE id=?", (room_id,))
+    room = cur.fetchone()
+    
+    if not room:
+        flash('Room not found', 'error')
+        conn.close()
+        return redirect(url_for('admin_rooms'))
+    
+    if request.method == 'POST':
+        room_name = request.form.get('name')
+        capacity = request.form.get('capacity')
+        price_per_hour = request.form.get('price_per_hour')
+        status = request.form.get('status', 'available')
+        
+        now = get_malaysia_time()
+        cur.execute("""
+            UPDATE rooms 
+            SET room_name=?, capacity=?, price_per_hour=?, status=?, updated_at=?
+            WHERE id=?
+        """, (room_name, capacity, price_per_hour, status, now, room_id))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Room updated successfully', 'success')
+        return redirect(url_for('admin_rooms'))
+    
+    conn.close()
+    return render_template('admin/edit_room.html', room=room)
+
+@app.route('/admin/rooms/delete/<int:room_id>', methods=['POST'])
+def admin_delete_room(room_id):
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Delete related records first (cascade)
+    cur.execute("DELETE FROM reservation_equipment WHERE reservation_id IN (SELECT id FROM reservations WHERE room_id=?)", (room_id,))
+    cur.execute("DELETE FROM payments WHERE reservation_id IN (SELECT id FROM reservations WHERE room_id=?)", (room_id,))
+    cur.execute("DELETE FROM reservations WHERE room_id=?", (room_id,))
+    cur.execute("DELETE FROM rooms WHERE id=?", (room_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    flash('Room deleted successfully', 'success')
+    return redirect(url_for('admin_rooms'))
+
+@app.route('/admin/bookings')
+def admin_bookings():
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        SELECT r.*, u.name, u.student_id, rm.room_name
+        FROM reservations r
+        JOIN users u ON r.user_id = u.id
+        JOIN rooms rm ON r.room_id = rm.id
+        ORDER BY r.date DESC, r.start_time DESC
+    """)
+    bookings = cur.fetchall()
+    conn.close()
+    
+    return render_template('admin/bookings.html', bookings=bookings)
+
+@app.route('/admin/payments')
+def admin_payments():
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        SELECT p.*, u.name, u.student_id, r.date, rm.room_name
         FROM payments p
         JOIN users u ON p.user_id = u.id
         JOIN reservations r ON p.reservation_id = r.id
         JOIN rooms rm ON r.room_id = rm.id
-        WHERE p.id = %s AND p.user_id = %s
-    """, (payment_id, session['user_id']), fetch_one=True)
+        ORDER BY p.paid_at DESC
+    """)
+    payments = cur.fetchall()
+    conn.close()
     
-    if not payment:
-        flash('Receipt not found.', 'error')
-        return redirect(url_for('patron_my_bookings'))
-    
-    hours = calculate_hours(payment['start_time'], payment['end_time'])
-    
-    return render_template('patron/receipt.html', payment=payment, hours=hours)
+    return render_template('admin/payments.html', payments=payments)
 
+# ================= ERROR HANDLERS =================
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('login.html'), 404
 
-@app.route('/patron/my-bookings')
-@patron_required
-def patron_my_bookings():
-    bookings = execute_query("""
-        SELECT r.id, r.reservation_date, r.start_time, r.end_time, r.status,
-               rm.name as room_name, rm.capacity,
-               p.id as payment_id, p.transaction_id
-        FROM reservations r
-        JOIN rooms rm ON r.room_id = rm.id
-        LEFT JOIN payments p ON r.id = p.reservation_id
-        WHERE r.user_id = %s
-        ORDER BY r.reservation_date DESC, r.start_time
-    """, (session['user_id'],), fetch_all=True)
-    return render_template('patron/my_bookings.html', bookings=bookings)
+@app.errorhandler(500)
+def server_error(e):
+    return "Internal Server Error", 500
 
-
-@app.route('/patron/cancel/<int:booking_id>')
-@patron_required
-def patron_cancel_booking(booking_id):
-    booking = execute_query(
-        "SELECT * FROM reservations WHERE id = %s AND user_id = %s",
-        (booking_id, session['user_id']),
-        fetch_one=True
-    )
-    
-    if not booking:
-        flash('Booking not found.', 'error')
-        return redirect(url_for('patron_my_bookings'))
-    
-    execute_query(
-        "UPDATE reservations SET status = 'cancelled' WHERE id = %s",
-        (booking_id,)
-    )
-    
-    # Update payment status if exists
-    execute_query(
-        "UPDATE payments SET status = 'refunded' WHERE reservation_id = %s",
-        (booking_id,)
-    )
-    
-    flash('Booking cancelled successfully!', 'success')
-    return redirect(url_for('patron_my_bookings'))
-
-
+# ================= RUN APP =================
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-
+    app.run(debug=True, host='0.0.0.0', port=5002)

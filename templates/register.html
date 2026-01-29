@@ -7,6 +7,158 @@
     <title>Register - Library Room Reservation</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .auth-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .auth-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .auth-logo {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-logo i {
+            margin-right: 0.5rem;
+        }
+
+        .auth-subtitle {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .auth-card form {
+            padding: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .auth-footer {
+            text-align: center;
+            padding: 1.5rem;
+            background: #f7fafc;
+            color: #666;
+        }
+
+        .auth-footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #48bb78;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #742a2a;
+            border-left: 4px solid #f56565;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -22,16 +174,18 @@
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
+            <div style="padding: 1rem;">
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            </div>
             {% endfor %}
             {% endif %}
             {% endwith %}
 
             <form method="POST" action="{{ url_for('register') }}">
                 <div class="form-group">
-                    <label class="form-label" for="username">Username</label>
-                    <input type="text" id="username" name="username" class="form-control"
-                        placeholder="Choose a username" required>
+                    <label class="form-label" for="name">Full Name</label>
+                    <input type="text" id="name" name="name" class="form-control" placeholder="Enter your full name"
+                        required>
                 </div>
 
                 <div class="form-group">
@@ -41,24 +195,32 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="password">Password</label>
-                    <input type="password" id="password" name="password" class="form-control"
-                        placeholder="Choose a password" required>
+                    <label class="form-label" for="username">Username</label>
+                    <input type="text" id="username" name="username" class="form-control"
+                        placeholder="Choose a username" required>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="confirm_password">Confirm Password</label>
-                    <input type="password" id="confirm_password" name="confirm_password" class="form-control"
-                        placeholder="Confirm your password" required>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="password">Password</label>
+                        <input type="password" id="password" name="password" class="form-control"
+                            placeholder="Enter password" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="confirm_password">Confirm Password</label>
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-control"
+                            placeholder="Confirm password" required>
+                    </div>
                 </div>
 
-                <button type="submit" class="btn btn-success" style="width: 100%;">
+                <button type="submit" class="btn btn-primary">
                     <i class="fas fa-user-plus"></i> Create Account
                 </button>
             </form>
 
             <div class="auth-footer">
-                Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
+                Already have an account? <a href="{{ url_for('login') }}">Sign in here</a>
             </div>
         </div>
     </div>

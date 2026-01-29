@@ -31,8 +31,8 @@
                     <tr>
                         <td>{{ loop.index }}</td>
                         <td>{{ booking.room_name }}</td>
-                        <td>{{ booking.name }}</td>
-                        <td>{{ booking.date }}</td>
+                        <td>{{ booking.username }}</td>
+                        <td>{{ booking.reservation_date }}</td>
                         <td>{{ booking.start_time }} - {{ booking.end_time }}</td>
                         <td>
                             {% if booking.status == 'confirmed' %}

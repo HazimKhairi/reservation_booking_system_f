@@ -37,15 +37,15 @@
 
                 <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
                     <span style="color: var(--dark-grey);">Transaction ID</span>
-                    <strong style="font-family: monospace;">{{ reservation.transaction_id }}</strong>
+                    <strong style="font-family: monospace;">{{ payment.transaction_id }}</strong>
                 </div>
                 <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
                     <span style="color: var(--dark-grey);">Date & Time</span>
-                    <strong>{{ reservation.paid_at if reservation.paid_at else 'N/A' }}</strong>
+                    <strong>{{ payment.paid_at.strftime('%d %b %Y, %I:%M %p') if payment.paid_at else 'N/A' }}</strong>
                 </div>
                 <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
                     <span style="color: var(--dark-grey);">Status</span>
-                    <span class="badge badge-success">{{ reservation.status }}</span>
+                    <span class="badge badge-success">{{ payment.status|capitalize }}</span>
                 </div>
             </div>
 
@@ -58,16 +58,26 @@
 
                 <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
                     <span style="color: var(--dark-grey);">Room</span>
-                    <strong>{{ reservation.room_name }}</strong>
+                    <strong>{{ payment.room_name }}</strong>
                 </div>
                 <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
                     <span style="color: var(--dark-grey);">Reservation Date</span>
-                    <strong>{{ reservation.date }}</strong>
+                    <strong>{{ payment.reservation_date }}</strong>
                 </div>
                 <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
                     <span style="color: var(--dark-grey);">Time Slot</span>
-                    <strong>{{ reservation.start_time }} - {{ reservation.end_time }}</strong>
+                    <strong>{{ payment.start_time }} - {{ payment.end_time }}</strong>
                 </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Duration</span>
+                    <strong>{{ hours }} hour(s)</strong>
+                </div>
+                {% if payment.equipment %}
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Equipment</span>
+                    <strong>{{ payment.equipment }}</strong>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Payment Information -->
@@ -79,7 +89,20 @@
 
                 <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
                     <span style="color: var(--dark-grey);">Payment Method</span>
-                    <strong>{{ reservation.payment_method }}</strong>
+                    <strong>{{ payment.payment_method }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Bank</span>
+                    <strong>{{ payment.bank_name }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Account Number</span>
+                    <strong>****{{ payment.account_number[-4:] if payment.account_number and
+                        payment.account_number|length >= 4 else payment.account_number }}</strong>
+                </div>
+                <div class="detail-row" style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--dark-grey);">Account Holder</span>
+                    <strong>{{ payment.account_holder }}</strong>
                 </div>
             </div>
 
@@ -88,7 +111,7 @@
                 style="background-color: var(--light-grey); border-radius: 4px; padding: 20px; text-align: center; margin-bottom: 24px;">
                 <span style="color: var(--dark-grey); font-size: 14px;">Total Amount Paid</span>
                 <div style="font-size: 32px; font-weight: 700; color: var(--navy); margin-top: 4px;">
-                    RM {{ "%.2f"|format(reservation.amount) }}
+                    RM {{ "%.2f"|format(payment.amount) }}
                 </div>
             </div>
 
@@ -96,7 +119,11 @@
             <div style="background-color: #f8f9fa; border-radius: 4px; padding: 16px; margin-bottom: 24px;">
                 <div style="display: flex; justify-content: space-between; font-size: 14px;">
                     <span style="color: var(--dark-grey);">Booked by:</span>
-                    <strong>{{ session.name }}</strong>
+                    <strong>{{ payment.username }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 14px; margin-top: 8px;">
+                    <span style="color: var(--dark-grey);">Email:</span>
+                    <strong>{{ payment.email }}</strong>
                 </div>
             </div>
 

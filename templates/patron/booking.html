@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">Book {{ room.name }}</h1>
+    <h1 class="page-title">Book {{ room.room_name }}</h1>
     <p class="page-subtitle">Select your preferred date and time slot</p>
 </div>
 
@@ -16,7 +16,7 @@
         <div class="room-info">
             <div class="room-info-item">
                 <i class="fas fa-door-open"></i>
-                <span><strong>{{ room.name }}</strong></span>
+                <span><strong>{{ room.room_name }}</strong></span>
             </div>
             <div class="room-info-item">
                 <i class="fas fa-users"></i>
@@ -49,19 +49,19 @@
                     <label class="form-label" for="start_time">Start Time</label>
                     <select id="start_time" name="start_time" class="form-control" required>
                         <option value="">Select start time</option>
-                        <option value="08:00">08:00 AM</option>
-                        <option value="09:00">09:00 AM</option>
-                        <option value="10:00">10:00 AM</option>
-                        <option value="11:00">11:00 AM</option>
-                        <option value="12:00">12:00 PM</option>
-                        <option value="13:00">01:00 PM</option>
-                        <option value="14:00">02:00 PM</option>
-                        <option value="15:00">03:00 PM</option>
-                        <option value="16:00">04:00 PM</option>
-                        <option value="17:00">05:00 PM</option>
-                        <option value="18:00">06:00 PM</option>
-                        <option value="19:00">07:00 PM</option>
-                        <option value="20:00">08:00 PM</option>
+                        <option value="08:00 AM">08:00 AM</option>
+                        <option value="09:00 AM">09:00 AM</option>
+                        <option value="10:00 AM">10:00 AM</option>
+                        <option value="11:00 AM">11:00 AM</option>
+                        <option value="12:00 PM">12:00 PM</option>
+                        <option value="01:00 PM">01:00 PM</option>
+                        <option value="02:00 PM">02:00 PM</option>
+                        <option value="03:00 PM">03:00 PM</option>
+                        <option value="04:00 PM">04:00 PM</option>
+                        <option value="05:00 PM">05:00 PM</option>
+                        <option value="06:00 PM">06:00 PM</option>
+                        <option value="07:00 PM">07:00 PM</option>
+                        <option value="08:00 PM">08:00 PM</option>
                     </select>
                 </div>
 
@@ -69,19 +69,18 @@
                     <label class="form-label" for="end_time">End Time</label>
                     <select id="end_time" name="end_time" class="form-control" required>
                         <option value="">Select end time</option>
-                        <option value="09:00">09:00 AM</option>
-                        <option value="10:00">10:00 AM</option>
-                        <option value="11:00">11:00 AM</option>
-                        <option value="12:00">12:00 PM</option>
-                        <option value="13:00">01:00 PM</option>
-                        <option value="14:00">02:00 PM</option>
-                        <option value="15:00">03:00 PM</option>
-                        <option value="16:00">04:00 PM</option>
-                        <option value="17:00">05:00 PM</option>
-                        <option value="18:00">06:00 PM</option>
-                        <option value="19:00">07:00 PM</option>
-                        <option value="20:00">08:00 PM</option>
-                        <option value="21:00">09:00 PM</option>
+                        <option value="09:00 AM">09:00 AM</option>
+                        <option value="10:00 AM">10:00 AM</option>
+                        <option value="11:00 AM">11:00 AM</option>
+                        <option value="12:00 PM">12:00 PM</option>
+                        <option value="01:00 PM">01:00 PM</option>
+                        <option value="02:00 PM">02:00 PM</option>
+                        <option value="03:00 PM">03:00 PM</option>
+                        <option value="04:00 PM">04:00 PM</option>
+                        <option value="05:00 PM">05:00 PM</option>
+                        <option value="06:00 PM">06:00 PM</option>
+                        <option value="07:00 PM">07:00 PM</option>
+                        <option value="08:00 PM">08:00 PM</option>
                     </select>
                 </div>
             </div>

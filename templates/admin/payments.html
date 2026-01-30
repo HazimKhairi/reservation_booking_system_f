@@ -32,9 +32,9 @@
                     {% for payment in payments %}
                     <tr>
                         <td><code>{{ payment.transaction_id }}</code></td>
-                        <td>{{ payment.username }}</td>
+                        <td>{{ payment.user_name }}</td>
                         <td>{{ payment.room_name }}</td>
-                        <td>{{ payment.reservation_date }}</td>
+                        <td>{{ payment.date }}</td>
                         <td><strong>RM {{ "%.2f"|format(payment.amount) }}</strong></td>
                         <td>{{ payment.payment_method }}</td>
                         <td>{{ payment.bank_name }}</td>

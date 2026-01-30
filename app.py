@@ -354,7 +354,10 @@ def patron_my_bookings():
     bookings = cur.fetchall()
     conn.close()
     
-    return render_template('patron/my_bookings.html', bookings=bookings)
+
+    
+    # Pass 'today' (as date object) to the template
+    return render_template('patron/my_bookings.html', bookings=bookings, today=date.today())
 
 @app.route('/patron/edit-booking/<int:booking_id>', methods=['GET', 'POST'])
 def patron_edit_booking(booking_id):
@@ -643,7 +646,7 @@ def admin_payments():
     cur = conn.cursor()
     
     cur.execute("""
-        SELECT p.*, u.name, u.student_id, r.date, rm.room_name
+        SELECT p.*, u.name as user_name, u.student_id, r.date, rm.room_name
         FROM payments p
         JOIN users u ON p.user_id = u.id
         JOIN reservations r ON p.reservation_id = r.id

@@ -170,6 +170,76 @@ def patron_dashboard():
                          upcoming_bookings=upcoming_bookings, 
                          balance=balance)
 
+@app.route('/patron/bank')
+def patron_bank():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Get balances
+    cur.execute("SELECT balance FROM bank WHERE user_id=?", (session['user_id'],))
+    sys_bal = cur.fetchone()
+    system_balance = sys_bal['balance'] if sys_bal else 0
+    
+    cur.execute("SELECT bank_balance FROM user_bank_acc WHERE user_id=?", (session['user_id'],))
+    bank_bal = cur.fetchone()
+    bank_balance = bank_bal['bank_balance'] if bank_bal else 0
+    
+    # Get transactions
+    cur.execute("SELECT * FROM transactions WHERE user_id=? ORDER BY date DESC LIMIT 10", (session['user_id'],))
+    transactions = cur.fetchall()
+    
+    conn.close()
+    
+    return render_template('patron/bank.html', 
+                         system_balance=system_balance,
+                         bank_balance=bank_balance,
+                         transactions=transactions)
+
+@app.route('/patron/bank/topup', methods=['POST'])
+def patron_bank_topup():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        amount = float(request.form.get('amount'))
+        bank_name = request.form.get('bank_choice')
+    except ValueError:
+        flash('Invalid amount', 'error')
+        return redirect(url_for('patron_bank'))
+        
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Check bank balance
+    cur.execute("SELECT bank_balance FROM user_bank_acc WHERE user_id=?", (session['user_id'],))
+    user_acc = cur.fetchone()
+    
+    if not user_acc or user_acc['bank_balance'] < amount:
+        flash('Insufficient funds in external bank account', 'error')
+        conn.close()
+        return redirect(url_for('patron_bank'))
+    
+    now = get_malaysia_time()
+    
+    # Deduct from bank, add to system wallet
+    cur.execute("UPDATE user_bank_acc SET bank_balance = bank_balance - ? WHERE user_id=?", (amount, session['user_id']))
+    cur.execute("UPDATE bank SET balance = balance + ? WHERE user_id=?", (amount, session['user_id']))
+    
+    # Log transaction
+    cur.execute("""
+        INSERT INTO transactions (user_id, bank_name, amount, date, status)
+        VALUES (?, ?, ?, ?, 'SUCCESS')
+    """, (session['user_id'], bank_name, amount, now))
+    
+    conn.commit()
+    conn.close()
+    
+    flash(f'Top-up successful! RM {amount} added to wallet.', 'success')
+    return redirect(url_for('patron_bank'))
+
 @app.route('/patron/rooms')
 def patron_rooms():
     if 'user_id' not in session:
@@ -241,6 +311,10 @@ def patron_checkout(reservation_id):
     conn = connect_db()
     cur = conn.cursor()
     
+    # Get user details for form pre-fill
+    cur.execute("SELECT * FROM users WHERE id=?", (session['user_id'],))
+    user = cur.fetchone()
+
     # Get reservation details
     cur.execute("""
         SELECT r.*, rm.room_name, rm.price_per_hour
@@ -261,11 +335,15 @@ def patron_checkout(reservation_id):
         "12:00 PM","01:00 PM","02:00 PM","03:00 PM",
         "04:00 PM","05:00 PM","06:00 PM","07:00 PM","08:00 PM"
     ]
-    start_idx = time_slots.index(reservation['start_time'])
-    end_idx = time_slots.index(reservation['end_time'])
-    hours = end_idx - start_idx
-    total_cost = hours * reservation['price_per_hour']
-    
+    try:
+        start_idx = time_slots.index(reservation['start_time'])
+        end_idx = time_slots.index(reservation['end_time'])
+        hours = end_idx - start_idx
+        total_cost = hours * reservation['price_per_hour']
+    except ValueError:
+        hours = 0
+        total_cost = 0
+
     if request.method == 'POST':
         payment_method = request.form.get('payment_method')
         bank_name = request.form.get('bank_name')
@@ -276,18 +354,31 @@ def patron_checkout(reservation_id):
         transaction_id = f"TXN-{int(time.time())}"
         now = get_malaysia_time()
         
-        # Check balance if using system balance
+        # Check balance based on payment method
         if payment_method == 'System Balance':
             cur.execute("SELECT balance FROM bank WHERE user_id=?", (session['user_id'],))
             balance = cur.fetchone()['balance']
             if balance < total_cost:
-                flash('Insufficient balance', 'error')
+                flash('Insufficient system wallet balance. Please top up or use online banking.', 'error')
                 conn.close()
-                return render_template('patron/checkout.html', reservation=reservation, total_cost=total_cost, hours=hours)
+                return render_template('patron/checkout.html', reservation=reservation, total_cost=total_cost, hours=hours, user=user)
             
-            # Deduct balance
+            # Deduct system balance
             cur.execute("UPDATE bank SET balance = balance - ? WHERE user_id=?", (total_cost, session['user_id']))
-        
+            
+        else:
+            # External Bank Payment (Online Banking, etc)
+            cur.execute("SELECT bank_balance FROM user_bank_acc WHERE user_id=?", (session['user_id'],))
+            bank_acc = cur.fetchone()
+            
+            if not bank_acc or bank_acc['bank_balance'] < total_cost:
+                flash('Insufficient funds in your external bank account.', 'error')
+                conn.close()
+                return render_template('patron/checkout.html', reservation=reservation, total_cost=total_cost, hours=hours, user=user)
+            
+            # Deduct external bank balance
+            cur.execute("UPDATE user_bank_acc SET bank_balance = bank_balance - ? WHERE user_id=?", (total_cost, session['user_id']))
+
         # Create payment record
         cur.execute("""
             INSERT INTO payments (
@@ -309,7 +400,7 @@ def patron_checkout(reservation_id):
         return redirect(url_for('patron_receipt', reservation_id=reservation_id))
     
     conn.close()
-    return render_template('patron/checkout.html', reservation=reservation, total_cost=total_cost, hours=hours)
+    return render_template('patron/checkout.html', reservation=reservation, total_cost=total_cost, hours=hours, user=user)
 
 @app.route('/patron/receipt/<int:reservation_id>')
 def patron_receipt(reservation_id):
@@ -345,7 +436,7 @@ def patron_my_bookings():
     cur = conn.cursor()
     
     cur.execute("""
-        SELECT r.*, rm.room_name, rm.price_per_hour
+        SELECT r.*, rm.room_name, rm.price_per_hour, rm.capacity
         FROM reservations r
         JOIN rooms rm ON r.room_id = rm.id
         WHERE r.user_id = ?
@@ -356,8 +447,8 @@ def patron_my_bookings():
     
 
     
-    # Pass 'today' (as date object) to the template
-    return render_template('patron/my_bookings.html', bookings=bookings, today=date.today())
+    # Pass 'today' (as string for comparison) to the template
+    return render_template('patron/my_bookings.html', bookings=bookings, today=date.today().strftime("%Y-%m-%d"))
 
 @app.route('/patron/edit-booking/<int:booking_id>', methods=['GET', 'POST'])
 def patron_edit_booking(booking_id):
@@ -382,6 +473,7 @@ def patron_edit_booking(booking_id):
         return redirect(url_for('patron_my_bookings'))
     
     if request.method == 'POST':
+        new_room_id = request.form.get('room_id')
         new_date = request.form.get('date')
         new_start_time = request.form.get('start_time')
         new_end_time = request.form.get('end_time')
@@ -389,9 +481,9 @@ def patron_edit_booking(booking_id):
         now = get_malaysia_time()
         cur.execute("""
             UPDATE reservations 
-            SET date=?, start_time=?, end_time=?, updated_at=?
+            SET room_id=?, date=?, start_time=?, end_time=?, updated_at=?
             WHERE id=?
-        """, (new_date, new_start_time, new_end_time, now, booking_id))
+        """, (new_room_id, new_date, new_start_time, new_end_time, now, booking_id))
         
         conn.commit()
         conn.close()
@@ -399,8 +491,12 @@ def patron_edit_booking(booking_id):
         flash('Booking updated successfully', 'success')
         return redirect(url_for('patron_my_bookings'))
     
+    # Get available rooms for dropdown
+    cur.execute("SELECT * FROM rooms WHERE status='available' OR id=? ORDER BY room_name", (booking['room_id'],))
+    rooms = cur.fetchall()
+    
     conn.close()
-    return render_template('patron/edit_booking.html', booking=booking)
+    return render_template('patron/edit_booking.html', booking=booking, rooms=rooms)
 
 @app.route('/patron/cancel-booking/<int:booking_id>', methods=['POST'])
 def patron_cancel_booking(booking_id):

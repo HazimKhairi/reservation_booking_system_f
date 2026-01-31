@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}My Bank - Library Room Reservation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">My Bank & Wallet</h1>
+    <p class="page-subtitle">Manage your bank account and system wallet</p>
+</div>
+
+<div class="stats-grid">
+    <!-- External Bank Account -->
+    <div class="stat-card">
+        <div class="stat-icon blue">
+            <i class="fas fa-university"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ bank_balance }}</div>
+            <div class="stat-label">Bank Account Balance (External)</div>
+        </div>
+    </div>
+
+    <!-- System Wallet -->
+    <div class="stat-card">
+        <div class="stat-icon purple">
+            <i class="fas fa-wallet"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ system_balance }}</div>
+            <div class="stat-label">System Wallet Balance</div>
+        </div>
+    </div>
+</div>
+
+<div class="form-row">
+    <!-- Top Up Wallet Section -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Top Up Wallet</h3>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('patron_bank_topup') }}" method="POST">
+                <p style="margin-bottom: 15px; color: #666;">
+                    Transfer money from your External Bank Account to your System Wallet.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label" for="amount">Amount</label>
+                    <input type="number" id="amount" name="amount" class="form-control"
+                        placeholder="Enter amount to top up" min="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="bank_choice">Select Bank</label>
+                    <select id="bank_choice" name="bank_choice" class="form-control" required>
+                        <option value="Maybank">Maybank</option>
+                        <option value="CIMB">CIMB</option>
+                        <option value="Bank Islam">Bank Islam</option>
+                        <option value="Hong Leong">Hong Leong</option>
+                        <option value="Public Bank">Public Bank</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-money-bill-transfer"></i> Top Up Balance
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Recent Transactions Section -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Recent Transactions</h3>
+        </div>
+        <div class="card-body">
+            {% if transactions %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Bank</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for txn in transactions %}
+                        <tr>
+                            <td>{{ txn.date }}</td>
+                            <td>{{ txn.bank_name }}</td>
+                            <td style="color: green; font-weight: bold;">+{{ txn.amount }}</td>
+                            <td>
+                                <span class="badge badge-success">{{ txn.status }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 2rem;">
+                <i class="fas fa-history" style="font-size: 2rem;"></i>
+                <p>No recent top-up transactions.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

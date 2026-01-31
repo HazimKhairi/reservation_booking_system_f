@@ -15,10 +15,22 @@
     <div class="card-body">
         <form method="POST" action="{{ url_for('patron_edit_booking', booking_id=booking.id) }}">
             <div class="form-group">
+                <label class="form-label" for="room_id">Room</label>
+                <select id="room_id" name="room_id" class="form-control" required>
+                    {% for room in rooms %}
+                    <option value="{{ room.id }}" {% if room.id==booking.room_id %}selected{% endif %}>
+                        {{ room.room_name }} (Capacity: {{ room.capacity }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <small class="form-text text-muted">Changing the room will update the capacity.</small>
+            </div>
+
+            <div class="form-group">
                 <label class="form-label" for="date">Reservation Date</label>
                 <!-- Calculate min date: must be tomorrow or later -->
-                <input type="date" id="date" name="date" class="form-control" required
-                    value="{{ booking.reservation_date }}" min="">
+                <input type="date" id="date" name="date" class="form-control" required value="{{ booking.date }}"
+                    min="">
             </div>
 
             <div class="form-row">

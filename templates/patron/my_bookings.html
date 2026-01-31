@@ -34,26 +34,32 @@
                     <tr>
                         <td>{{ booking.room_name }}</td>
                         <td>{{ booking.capacity }} people</td>
-                        <td>{{ booking.reservation_date }}</td>
+                        <td>{{ booking.date }}</td>
                         <td>{{ booking.start_time }} - {{ booking.end_time }}</td>
                         <td>
-                            {% if booking.status == 'confirmed' %}
+                            {% if booking.status == 'Confirmed' %}
                             <span class="badge badge-success">Confirmed</span>
-                            {% else %}
+                            {% elif booking.status == 'Pending' %}
+                            <span class="badge badge-warning">Pending</span>
+                            {% elif booking.status == 'Cancelled' %}
                             <span class="badge badge-danger">Cancelled</span>
+                            {% else %}
+                            <span class="badge badge-secondary">{{ booking.status }}</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if booking.status == 'confirmed' %}
-                            <a href="{{ url_for('patron_cancel_booking', booking_id=booking.id) }}"
-                                class="btn btn-danger btn-sm"
-                                onclick="return confirm('Are you sure you want to cancel this booking?')">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
-                            {% if booking.reservation_date > today %}
+                            {% if booking.status == 'Confirmed' or booking.status == 'Pending' %}
+                            <form action="{{ url_for('patron_cancel_booking', booking_id=booking.id) }}" method="POST"
+                                style="display:inline;">
+                                <button type="submit" class="btn btn-danger btn-sm"
+                                    onclick="return confirm('Are you sure you want to cancel this booking?')">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            </form>
+                            {% if booking.date >= today %}
                             <a href="{{ url_for('patron_edit_booking', booking_id=booking.id) }}"
                                 class="btn btn-primary btn-sm">
-                                <i class="fas fa-edit"></i> Edit
+                                <i class="fas fa-edit"></i> Update
                             </a>
                             {% endif %}
                             {% else %}

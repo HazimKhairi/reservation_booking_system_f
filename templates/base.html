@@ -355,6 +355,7 @@
             <a href="{{ url_for('patron_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
             <a href="{{ url_for('patron_rooms') }}"><i class="fas fa-search"></i> Browse Rooms</a>
             <a href="{{ url_for('patron_my_bookings') }}"><i class="fas fa-calendar-check"></i> My Bookings</a>
+            <a href="{{ url_for('patron_bank') }}"><i class="fas fa-wallet"></i> My Bank</a>
             {% endif %}
             <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout ({{ session.username }})</a>
             {% else %}

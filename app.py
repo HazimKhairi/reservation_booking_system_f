@@ -733,6 +733,117 @@ def admin_bookings():
     
     return render_template('admin/bookings.html', bookings=bookings)
 
+@app.route('/admin/bookings/add', methods=['GET', 'POST'])
+def admin_add_booking():
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+        room_id = request.form.get('room_id')
+        booking_date = request.form.get('date')
+        start_time = request.form.get('start_time')
+        end_time = request.form.get('end_time')
+        status = request.form.get('status', 'Pending')
+        
+        now = get_malaysia_time()
+        
+        # Determine num_people (optional, default 1)
+        cur.execute("SELECT capacity FROM rooms WHERE id=?", (room_id,))
+        capacity = cur.fetchone()['capacity']
+        
+        cur.execute("""
+            INSERT INTO reservations (user_id, room_id, date, start_time, end_time, num_people, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, room_id, booking_date, start_time, end_time, str(capacity), status, now, now))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Booking created successfully', 'success')
+        return redirect(url_for('admin_bookings'))
+    
+    # Get users and rooms for dropdowns
+    cur.execute("SELECT id, name, username FROM users WHERE role='student' ORDER BY name")
+    users = cur.fetchall()
+    
+    cur.execute("SELECT id, room_name, capacity FROM rooms ORDER BY room_name")
+    rooms = cur.fetchall()
+    
+    conn.close()
+    return render_template('admin/add_booking.html', users=users, rooms=rooms)
+
+@app.route('/admin/bookings/edit/<int:booking_id>', methods=['GET', 'POST'])
+def admin_edit_booking(booking_id):
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+        room_id = request.form.get('room_id')
+        booking_date = request.form.get('date')
+        start_time = request.form.get('start_time')
+        end_time = request.form.get('end_time')
+        status = request.form.get('status')
+        
+        now = get_malaysia_time()
+        
+        cur.execute("""
+            UPDATE reservations 
+            SET user_id=?, room_id=?, date=?, start_time=?, end_time=?, status=?, updated_at=?
+            WHERE id=?
+        """, (user_id, room_id, booking_date, start_time, end_time, status, now, booking_id))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Booking updated successfully', 'success')
+        return redirect(url_for('admin_bookings'))
+    
+    # Get booking details
+    cur.execute("SELECT * FROM reservations WHERE id=?", (booking_id,))
+    booking = cur.fetchone()
+    
+    if not booking:
+        flash('Booking not found', 'error')
+        conn.close()
+        return redirect(url_for('admin_bookings'))
+        
+    # Get users and rooms
+    cur.execute("SELECT id, name, username FROM users WHERE role='student' ORDER BY name")
+    users = cur.fetchall()
+    
+    cur.execute("SELECT id, room_name, capacity FROM rooms ORDER BY room_name")
+    rooms = cur.fetchall()
+    
+    conn.close()
+    return render_template('admin/edit_booking.html', booking=booking, users=users, rooms=rooms)
+
+@app.route('/admin/bookings/delete/<int:booking_id>', methods=['POST'])
+def admin_delete_booking(booking_id):
+    if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:
+        return redirect(url_for('login'))
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    
+    # Delete related payments first
+    cur.execute("DELETE FROM payments WHERE reservation_id=?", (booking_id,))
+    cur.execute("DELETE FROM reservation_equipment WHERE reservation_id=?", (booking_id,))
+    cur.execute("DELETE FROM reservations WHERE id=?", (booking_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    flash('Booking deleted successfully', 'success')
+    return redirect(url_for('admin_bookings'))
+
 @app.route('/admin/payments')
 def admin_payments():
     if 'user_id' not in session or session.get('role') not in ['admin', 'librarian']:

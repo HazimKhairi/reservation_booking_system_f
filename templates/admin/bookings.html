@@ -11,6 +11,9 @@
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Booking Records</h3>
+        <a href="{{ url_for('admin_add_booking') }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus"></i> Add Booking
+        </a>
     </div>
     <div class="card-body">
         {% if bookings %}
@@ -24,6 +27,7 @@
                         <th>Date</th>
                         <th>Time</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -35,11 +39,31 @@
                         <td>{{ booking.date }}</td>
                         <td>{{ booking.start_time }} - {{ booking.end_time }}</td>
                         <td>
-                            {% if booking.status == 'confirmed' %}
+                            {% if booking.status == 'Confirmed' %}
                             <span class="badge badge-success">Confirmed</span>
-                            {% else %}
+                            {% elif booking.status == 'Pending' %}
+                            <span class="badge badge-warning">Pending</span>
+                            {% elif booking.status == 'Cancelled' %}
                             <span class="badge badge-danger">Cancelled</span>
+                            {% else %}
+                            <span class="badge badge-info">{{ booking.status }}</span>
                             {% endif %}
+                        </td>
+                        <td>
+                            <div class="action-btns">
+                                <a href="{{ url_for('admin_edit_booking', booking_id=booking['id']) }}"
+                                    class="btn btn-outline btn-sm">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form action="{{ url_for('admin_delete_booking', booking_id=booking['id']) }}"
+                                    method="POST"
+                                    onsubmit="return confirm('Are you sure you want to delete this booking?');"
+                                    style="display:inline;">
+                                    <button type="submit" class="btn btn-danger btn-sm">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
